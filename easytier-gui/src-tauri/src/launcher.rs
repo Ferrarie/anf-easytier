@@ -17,8 +17,9 @@ use easytier::{
         peer::GetIpListResponse,
     },
 };
+use serde::{Deserialize, Serialize};
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct MyNodeInfo {
     pub virtual_ipv4: String,
     pub ips: GetIpListResponse,
@@ -197,10 +198,6 @@ impl EasyTierLauncher {
 
     pub fn get_peers(&self) -> Vec<PeerInfo> {
         self.data.peers.read().unwrap().clone()
-    }
-
-    pub fn running_cfg(&self) -> String {
-        self.running_cfg.clone()
     }
 }
 
