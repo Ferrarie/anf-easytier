@@ -164,6 +164,7 @@ port_forwards_help: "将本地端口转发到虚拟网络中的远程端口。�
 port_forwards_bind_addr: "绑定地址，如：0.0.0.0"
 port_forwards_dst_addr: "目标地址，如：10.200.126.1"
 port_forwards_add_btn: "添加"
+edit_port_forward: "编辑端口转发"
 
 mtu: MTU
 mtu_help: |
