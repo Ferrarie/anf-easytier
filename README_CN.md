@@ -79,9 +79,7 @@ easytier-cli gen-autocomplete fish > ~/.config/fish/completions/easytier-cli.fis
 
 #### 使用共享节点快速组网
 
-EasyTier 支持使用共享公共节点快速组网。当您没有公网 IP 时，可以使用 EasyTier 社区提供的免费共享节点。节点会自动尝试 NAT 穿透并建立 P2P 连接。当 P2P 失败时，数据将通过共享节点中继。
-
-当前部署的共享公共节点是 `tcp://public.easytier.cn:11010`。
+EasyTier 支持使用共享节点快速组网。当您没有公网 IP 时，可以使用公共共享节点。节点会自动尝试 NAT 穿透并建立 P2P 连接。当 P2P 失败时，数据将通过共享节点中继。
 
 使用共享节点时，每个进入网络的节点需要提供相同的 `--network-name` 和 `--network-secret` 参数作为网络的唯一标识符。
 
@@ -91,14 +89,14 @@ EasyTier 支持使用共享公共节点快速组网。当您没有公网 IP 时�
 
 ```bash
 # 以管理员权限运行
-sudo easytier-core -d --network-name abc --network-secret abc -p tcp://public.easytier.cn:11010
+sudo easytier-core -d --network-name abc --network-secret abc -p tcp://<共享节点IP>:11010
 ```
 
 2. 在节点 B 上运行：
 
 ```bash
 # 以管理员权限运行
-sudo easytier-core -d --network-name abc --network-secret abc -p tcp://public.easytier.cn:11010
+sudo easytier-core -d --network-name abc --network-secret abc -p tcp://<共享节点IP>:11010
 ```
 
 执行成功后，可以使用 `easytier-cli` 检查网络状态：
@@ -125,7 +123,7 @@ ping 10.200.126.2
 
 ```bash
 # 连接多个共享节点
-sudo easytier-core -d --network-name abc --network-secret abc -p tcp://public.easytier.cn:11010 -p udp://public.easytier.cn:11010
+sudo easytier-core -d --network-name abc --network-secret abc -p tcp://<公共节点IP>:11010 -p udp://<公共节点IP>:11010
 ```
 
 #### 去中心化组网
