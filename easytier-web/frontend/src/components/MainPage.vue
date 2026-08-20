@@ -159,6 +159,20 @@ onUnmounted(() => {
                 </li>
                 <li>
                     <Button variant="text" class="w-full justify-start gap-x-3 pl-1.5 sidebar-button"
+                        severity="contrast" @click="router.push({ name: 'deviceAdmin' })">
+                        <i class="pi pi-check-square text-xl"></i>
+                        <span class="mb-0.5">设备审批</span>
+                    </Button>
+                </li>
+                <li>
+                    <Button variant="text" class="w-full justify-start gap-x-3 pl-1.5 sidebar-button"
+                        severity="contrast" @click="router.push({ name: 'inviteManagement' })">
+                        <i class="pi pi-ticket text-xl"></i>
+                        <span class="mb-0.5">邀请码管理</span>
+                    </Button>
+                </li>
+                <li>
+                    <Button variant="text" class="w-full justify-start gap-x-3 pl-1.5 sidebar-button"
                         severity="contrast" @click="router.push({ name: 'login' })">
                         <i class="pi pi-sign-in text-xl"></i>
                         <span class="mb-0.5">{{ t('web.main.login_page') }}</span>

@@ -14,6 +14,9 @@ import Login from './components/Login.vue'
 import DeviceList from './components/DeviceList.vue'
 import DeviceManagement from './components/DeviceManagement.vue'
 import Dashboard from './components/Dashboard.vue'
+import DeviceAdminPage from './components/DeviceAdminPage.vue'
+import InviteManagementPage from './components/InviteManagementPage.vue'
+import RegisterDevice from './components/RegisterDevice.vue'
 import DialogService from 'primevue/dialogservice';
 import ToastService from 'primevue/toastservice';
 
@@ -32,6 +35,11 @@ const routes = [
                 path: 'register',
                 component: Login,
                 props: { isRegistering: true }
+            },
+            {
+                name: 'deviceRegister',
+                path: 'device-register',
+                component: RegisterDevice,
             }
         ]
     },
@@ -54,6 +62,16 @@ const routes = [
                         component: DeviceManagement,
                     }
                 ]
+            },
+            {
+                path: 'devices',
+                name: 'deviceAdmin',
+                component: DeviceAdminPage,
+            },
+            {
+                path: 'invites',
+                name: 'inviteManagement',
+                component: InviteManagementPage,
             },
         ]
     },

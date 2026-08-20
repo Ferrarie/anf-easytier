@@ -139,6 +139,10 @@ onBeforeUnmount(() => {
                         <Button :label="t('web.login.register')" type="button" class="w-full"
                             @click="saveApiHost(apiHost); $router.replace({ name: 'register' })" severity="secondary" />
                     </div>
+                    <div class="flex items-center justify-between">
+                        <Button label="设备注册（邀请码）" type="button" class="w-full"
+                            @click="saveApiHost(apiHost); $router.push({ name: 'deviceRegister' })" severity="info" />
+                    </div>
                     <div v-if="oidcEnabled" class="flex items-center justify-between">
                         <Button :label="t('web.login.sso_login')" type="button" class="w-full" severity="info"
                             @click="onSsoLogin" />

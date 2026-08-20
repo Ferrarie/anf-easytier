@@ -169,6 +169,59 @@ export class ApiClient {
         return response.machines;
     }
 
+    // ===== ANFAGENT-30 M1：设备注册 / 审批 / 分配 =====
+
+    /** 设备凭邀请码注册（公开） */
+    public async registerDevice(inviteCode: string, machineId: string): Promise<any> {
+        return this.client.post('/devices/register', {
+            invite_code: inviteCode,
+            machine_id: machineId,
+        });
+    }
+
+    /** 设备列表（管理员），status 可选 pending/approved/rejected/kicked */
+    public async listDevices(status?: string): Promise<Array<any>> {
+        const params = status ? { status } : {};
+        return this.client.get<any, Array<any>>('/devices', { params });
+    }
+
+    public async approveDevice(id: number): Promise<any> {
+        return this.client.post(`/devices/${id}/approve`);
+    }
+
+    public async rejectDevice(id: number): Promise<any> {
+        return this.client.post(`/devices/${id}/reject`);
+    }
+
+    public async kickDevice(id: number): Promise<any> {
+        return this.client.post(`/devices/${id}/kick`);
+    }
+
+    public async updateDevice(id: number, payload: {
+        display_name?: string;
+        tags?: Array<string>;
+        networks?: Array<string>;
+    }): Promise<any> {
+        return this.client.patch(`/devices/${id}`, payload);
+    }
+
+    // ===== ANFAGENT-30 M1：邀请码管理（管理员） =====
+
+    public async listInvites(): Promise<Array<any>> {
+        return this.client.get<any, Array<any>>('/invites');
+    }
+
+    public async createInvite(maxUses: number, expiresAt?: string): Promise<any> {
+        return this.client.post('/invites', {
+            max_uses: maxUses,
+            expires_at: expiresAt || null,
+        });
+    }
+
+    public async disableInvite(id: number): Promise<any> {
+        return this.client.delete(`/invites/${id}`);
+    }
+
     public async get_summary(): Promise<Summary> {
         const response = await this.client.get<any, Summary>('/summary');
         return response;
