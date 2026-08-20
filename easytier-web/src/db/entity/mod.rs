@@ -2,8 +2,14 @@
 
 pub mod prelude;
 
+pub mod acl_rules;
+pub mod admin_devices;
+pub mod device_networks;
+pub mod device_tags;
+pub mod devices;
 pub mod groups;
 pub mod groups_permissions;
+pub mod invite_codes;
 pub mod managed_config_revisions;
 pub mod permissions;
 pub mod tower_sessions;

@@ -2,8 +2,14 @@
 
 pub use super::groups::Entity as Groups;
 pub use super::groups_permissions::Entity as GroupsPermissions;
+pub use super::invite_codes::Entity as InviteCodes;
 pub use super::managed_config_revisions::Entity as ManagedConfigRevisions;
 pub use super::permissions::Entity as Permissions;
+pub use super::acl_rules::Entity as AclRules;
+pub use super::admin_devices::Entity as AdminDevices;
+pub use super::device_networks::Entity as DeviceNetworks;
+pub use super::device_tags::Entity as DeviceTags;
+pub use super::devices::Entity as Devices;
 pub use super::tower_sessions::Entity as TowerSessions;
 pub use super::user_running_network_configs::Entity as UserRunningNetworkConfigs;
 pub use super::users::Entity as Users;

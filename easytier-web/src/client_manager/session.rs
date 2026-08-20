@@ -498,6 +498,14 @@ impl SessionRpcService {
             }
         };
 
+        let authorized = storage
+            .db()
+            .device_is_authorized(machine_id)
+            .await
+            .with_context(|| {
+                format!("Failed to check device authorization for machine-id: {machine_id}")
+            })?;
+
         let (storage_token, notifier, runtime_req) = {
             let mut data = self.data.write().await;
             let is_new_storage_token = data.storage_token.is_none();
@@ -513,7 +521,11 @@ impl SessionRpcService {
                     user_id,
                 });
             }
-            data.auth_state = SessionAuthState::Authorized;
+            data.auth_state = if authorized {
+                SessionAuthState::Authorized
+            } else {
+                SessionAuthState::Init
+            };
 
             let Some(storage_token) = data.storage_token.as_ref().cloned() else {
                 tracing::error!("Heartbeat succeeded before session token was initialized");
@@ -523,7 +535,7 @@ impl SessionRpcService {
         };
 
         let report_time = Self::heartbeat_report_timestamp(&runtime_req);
-        storage.update_client(storage_token, report_time, true);
+        storage.update_client(storage_token, report_time, authorized);
         let _ = notifier.send(runtime_req);
         Ok(HeartbeatResponse {})
     }

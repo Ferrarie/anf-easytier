@@ -164,6 +164,23 @@ struct Cli {
 
     #[command(flatten)]
     webhook: WebhookOptions,
+
+    #[command(subcommand)]
+    command: Option<CliCommand>,
+}
+
+#[derive(Debug, Clone, clap::Subcommand)]
+enum CliCommand {
+    /// SSH 引导：把管理员设备的机器码绑定到指定用户（默认 admin）
+    AdminBind {
+        #[arg(long)]
+        machine_id: String,
+        #[arg(long, default_value = "admin")]
+        username: String,
+        /// 用户不存在时用该密码创建（初始 admin 引导）
+        #[arg(long)]
+        create_user_password: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Default, clap::Args)]
@@ -197,7 +214,7 @@ pub struct FeatureFlags {
     #[arg(
         long,
         env = "ET_DISABLE_REGISTRATION",
-        default_value = "false",
+        default_value = "true",
         help = t!("cli.disable_registration").to_string()
     )]
     pub disable_registration: bool,
@@ -288,6 +305,42 @@ async fn main() {
     setup_panic_handler();
 
     let cli = Cli::parse();
+
+    if let Some(cmd) = cli.command.clone() {
+        match cmd {
+            CliCommand::AdminBind {
+                machine_id,
+                username,
+                create_user_password,
+            } => {
+                let db = db::Db::new(cli.db.clone()).await.unwrap();
+                let machine_id: uuid::Uuid = machine_id.parse().unwrap_or_else(|_| {
+                    eprintln!("machine-id 必须是合法 UUID: {machine_id}");
+                    std::process::exit(1);
+                });
+                let user_id = match db.get_user_id(&username).await.unwrap() {
+                    Some(id) => id,
+                    None => match create_user_password {
+                        Some(password) => {
+                            let hash = password_auth::generate_hash(&password);
+                            db.create_user_and_join_users_group(&username, hash)
+                                .await
+                                .unwrap()
+                                .id
+                        }
+                        None => {
+                            eprintln!("用户不存在: {username}（可用 --create-user-password 创建）");
+                            std::process::exit(1);
+                        }
+                    },
+                };
+                db.bind_admin_device(machine_id, user_id).await.unwrap();
+                println!("已将机器码 {machine_id} 绑定为 {username} 的管理员设备");
+                return;
+            }
+        }
+    }
+
     log::init(&cli, false).unwrap();
 
     // Validate OIDC configuration: check split-deploy specific requirements

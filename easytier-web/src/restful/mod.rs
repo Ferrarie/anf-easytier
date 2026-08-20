@@ -1,5 +1,7 @@
 mod auth;
 pub(crate) mod captcha;
+mod devices;
+mod invites;
 mod network;
 pub(crate) mod oidc;
 mod rpc;
@@ -7,7 +9,9 @@ mod users;
 
 use std::{net::SocketAddr, sync::Arc};
 
-use axum::extract::Path;
+use axum::async_trait;
+use axum::extract::{FromRequestParts, Path};
+use axum::http::request::Parts;
 use axum::http::{Request, StatusCode, header};
 use axum::middleware::{self as axum_mw, Next};
 use axum::response::Response;
@@ -33,6 +37,50 @@ use crate::client_manager::ClientManager;
 use crate::client_manager::storage::StorageToken;
 use crate::db::{Db, UserIdInDb};
 use crate::webhook::SharedWebhookConfig;
+
+/// 管理员会话提取器：要求已登录且属于 superusers 组。
+pub struct AdminSession(pub users::AuthSession);
+
+#[async_trait]
+impl<S> FromRequestParts<S> for AdminSession
+where
+    S: Send + Sync,
+{
+    type Rejection = HttpHandleError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &S,
+    ) -> Result<Self, Self::Rejection> {
+        let session = users::AuthSession::from_request_parts(parts, state)
+            .await
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    other_error(format!("提取会话失败: {e:?}")).into(),
+                )
+            })?;
+        let Some(user) = session.user.as_ref() else {
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                other_error("未登录").into(),
+            ));
+        };
+        let Some(db) = parts.extensions.get::<Db>().cloned() else {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                other_error("DB 扩展缺失").into(),
+            ));
+        };
+        if !db.user_is_superuser(user.id()).await.map_err(convert_db_error)? {
+            return Err((
+                StatusCode::FORBIDDEN,
+                other_error("需要超级管理员权限").into(),
+            ));
+        }
+        Ok(AdminSession(session))
+    }
+}
 
 /// Embed assets for web dashboard, build frontend first
 #[cfg(feature = "embed")]
@@ -264,11 +312,14 @@ impl RestfulServer {
         let mut app = Router::new()
             .route("/api/v1/summary", get(Self::handle_get_summary))
             .route("/api/v1/sessions", get(Self::handle_list_all_sessions))
+            .merge(invites::router())
+            .merge(devices::admin_router())
             .merge(NetworkApi::build_route())
             .merge(rpc::router())
             .route_layer(login_required!(Backend))
             .merge(auth::router().layer(Extension(self.feature_flags.clone())))
             .merge(oidc::router())
+            .merge(devices::public_router())
             .with_state(self.client_mgr.clone())
             .route(
                 "/api/v1/generate-config",
@@ -276,6 +327,7 @@ impl RestfulServer {
             )
             .route("/api/v1/parse-config", post(Self::handle_parse_config))
             .layer(Extension(self.oidc_config.clone()))
+            .layer(Extension(self.db.clone()))
             .layer(MessagesManagerLayer)
             .layer(auth_layer)
             .layer(tower_http::cors::CorsLayer::very_permissive())
