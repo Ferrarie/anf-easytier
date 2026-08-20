@@ -1,0 +1,17 @@
+# ANFAGENT-30：easytier-web（embed 前端）镜像
+# 构建：cd repo-root && docker build -f deploy/Dockerfile.web -t anf-easytier-web .
+FROM ubuntu:24.04
+
+RUN apt-get update && apt-get install -y --no-install-recommends tzdata ca-certificates && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY target/release/easytier-web /usr/local/bin/easytier-web
+
+ENV TZ=Asia/Shanghai
+
+# REST API（仅 mesh 内网访问）
+EXPOSE 11211/tcp
+# config server
+EXPOSE 22020/udp
+
+ENTRYPOINT ["/usr/local/bin/easytier-web"]

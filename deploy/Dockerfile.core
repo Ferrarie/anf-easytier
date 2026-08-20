@@ -1,0 +1,16 @@
+# ANFAGENT-30：中心 easytier-core（中继/兜底）镜像
+# 构建：cd repo-root && docker build -f deploy/Dockerfile.core -t anf-easytier-core .
+FROM ubuntu:24.04
+
+RUN apt-get update && apt-get install -y --no-install-recommends tzdata ca-certificates && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY target/release/easytier-core /usr/local/bin/easytier-core
+
+ENV TZ=Asia/Shanghai
+
+# peer/中继
+EXPOSE 11010/tcp
+EXPOSE 11010/udp
+
+ENTRYPOINT ["/usr/local/bin/easytier-core"]

@@ -12,7 +12,6 @@ use sea_orm::{
     ColumnTrait, DbErr, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter,
     QueryOrder, Set,
 };
-use serde_json::Value;
 use uuid::Uuid;
 
 use super::{Db, entity};
@@ -418,11 +417,6 @@ impl Db {
             group: Some(GroupInfo { declares, members }),
         })
     }
-}
-
-#[allow(dead_code)]
-fn _json_value(s: &str) -> Value {
-    serde_json::from_str(s).unwrap_or(Value::Null)
 }
 
 #[cfg(test)]
