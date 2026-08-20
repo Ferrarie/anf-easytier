@@ -222,6 +222,48 @@ export class ApiClient {
         return this.client.delete(`/invites/${id}`);
     }
 
+    // ===== ANFAGENT-30 M2：网络 / tag / ACL =====
+
+    public async listNetworks(): Promise<Array<any>> {
+        return this.client.get<any, Array<any>>('/networks');
+    }
+
+    public async createNetwork(name: string, cidr?: string): Promise<any> {
+        return this.client.post('/networks', { name, cidr: cidr || null });
+    }
+
+    public async deleteNetwork(id: string): Promise<any> {
+        return this.client.delete(`/networks/${id}`);
+    }
+
+    public async networkDevices(id: string): Promise<Array<any>> {
+        return this.client.get<any, Array<any>>(`/networks/${id}/devices`);
+    }
+
+    public async listTags(): Promise<Array<any>> {
+        return this.client.get<any, Array<any>>('/tags');
+    }
+
+    public async createTag(name: string): Promise<any> {
+        return this.client.post('/tags', { name });
+    }
+
+    public async deleteTag(id: number): Promise<any> {
+        return this.client.delete(`/tags/${id}`);
+    }
+
+    public async listAclRules(networkId: string): Promise<Array<any>> {
+        return this.client.get<any, Array<any>>(`/networks/${networkId}/rules`);
+    }
+
+    public async createAclRule(networkId: string, rule: any): Promise<any> {
+        return this.client.post(`/networks/${networkId}/rules`, rule);
+    }
+
+    public async deleteAclRule(networkId: string, ruleId: number): Promise<any> {
+        return this.client.delete(`/networks/${networkId}/rules/${ruleId}`);
+    }
+
     public async get_summary(): Promise<Summary> {
         const response = await this.client.get<any, Summary>('/summary');
         return response;

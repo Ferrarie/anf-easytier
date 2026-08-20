@@ -2,6 +2,7 @@
 #[allow(unused_imports)]
 pub mod entity;
 pub mod anf;
+pub mod anf_networks;
 
 use easytier::common::config::{ConfigSource, NetworkConfig};
 use easytier_core::management::remote_client::{ListNetworkProps, Storage};

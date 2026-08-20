@@ -36,7 +36,10 @@ pub struct DeviceJson {
 }
 
 impl DeviceJson {
-    async fn from_model(db: &Db, m: entity::devices::Model) -> Result<Self, HttpHandleError> {
+    pub(crate) async fn from_model(
+        db: &Db,
+        m: entity::devices::Model,
+    ) -> Result<Self, HttpHandleError> {
         let tags = db.list_device_tags(m.id).await.map_err(convert_db_error)?;
         let networks = db
             .list_device_networks(m.id)

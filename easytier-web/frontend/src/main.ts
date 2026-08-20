@@ -17,6 +17,9 @@ import Dashboard from './components/Dashboard.vue'
 import DeviceAdminPage from './components/DeviceAdminPage.vue'
 import InviteManagementPage from './components/InviteManagementPage.vue'
 import RegisterDevice from './components/RegisterDevice.vue'
+import NetworkManagementPage from './components/NetworkManagementPage.vue'
+import TagManagementPage from './components/TagManagementPage.vue'
+import AclEditorPage from './components/AclEditorPage.vue'
 import DialogService from 'primevue/dialogservice';
 import ToastService from 'primevue/toastservice';
 
@@ -72,6 +75,21 @@ const routes = [
                 path: 'invites',
                 name: 'inviteManagement',
                 component: InviteManagementPage,
+            },
+            {
+                path: 'networks',
+                name: 'networkManagement',
+                component: NetworkManagementPage,
+            },
+            {
+                path: 'tags',
+                name: 'tagManagement',
+                component: TagManagementPage,
+            },
+            {
+                path: 'acl',
+                name: 'aclEditor',
+                component: AclEditorPage,
             },
         ]
     },
