@@ -1,0 +1,46 @@
+# ANFAGENT-30 中心化部署（docker compose 骨架，M3 细化）
+#
+# 说明：
+# - 本骨架用于描述服务拓扑与端口规划，镜像/配置在 M3（部署里程碑）细化；
+# - 上线前注意：VM 上运行中的官方 easytier@default 服务不得与本栈占用相同端口，
+#   或需在确认无碍 mesh 连接的前提下替换（先起新栈验证，再切换）。
+#
+# 用法（M3 后）：cp .env.example .env && docker compose up -d
+
+services:
+  easytier-web:
+    image: ${WEB_IMAGE:-registry.example.com/anidev/anf-easytier-web-embed:v2.6.4-anf.0}
+    container_name: anf-easytier-web
+    restart: unless-stopped
+    ports:
+      # web 控制台：仅经 ANF mesh 内网访问（HTTP），不暴露公网
+      - "11211:11211"
+    volumes:
+      - web-data:/app/data          # sqlite 与配置
+    environment:
+      - EASYTIER_WEB_CONFIG=/app/config.toml
+    networks:
+      - anf
+
+  easytier-core:
+    image: ${CORE_IMAGE:-registry.example.com/anidev/anf-easytier-core:v2.6.4-anf.0}
+    container_name: anf-easytier-core
+    restart: unless-stopped
+    network_mode: host              # 需要 TUN/多 UDP 端口，用 host 网络
+    command:
+      - -d
+      - --config-server-addr
+      - "0.0.0.0:22020"             # config server（UDP）
+      - --relay-udp-bind-addr
+      - "0.0.0.0:11010"             # 中继 UDP/TCP
+      - --relay-tcp-bind-addr
+      - "0.0.0.0:11010"
+    volumes:
+      - core-data:/var/lib/easytier # machine-id / state 持久化
+
+volumes:
+  web-data:
+  core-data:
+
+networks:
+  anf:
