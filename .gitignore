@@ -32,6 +32,11 @@ musl_gcc
 # log
 easytier-panic.log
 
+# 本地密钥与凭据（ANF 维护）
+.env
+*.env
+!.env.example
+
 # web
 node_modules
 easytier-web/frontend-lib/src/generated/
