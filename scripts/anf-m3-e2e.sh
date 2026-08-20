@@ -6,7 +6,8 @@ set -euo pipefail
 WEB="${WEB:-http://10.0.0.6:11211}"
 CONFIG_SERVER="${CONFIG_SERVER:-udp://10.0.0.6:22020/admin}"
 DB="${DB:-/tmp/anf-m3.db}"
-BIN="${BIN:-/home/anf-et/anf-easytier/target/release}"
+WEB_BIN="${WEB_BIN:-/home/anf-et/anf-easytier/target/debug/easytier-web}"
+CORE_BIN="${CORE_BIN:-/opt/easytier/easytier-core}"
 TMP="$(mktemp -d)"
 CJ="$TMP/cookies.txt"
 
@@ -15,18 +16,19 @@ DEVICE_MACHINE="$(cat /proc/sys/kernel/random/uuid)"
 
 echo "== 1. 初始化 DB 并绑定管理员设备 =="
 rm -f "$DB"
-"$BIN/easytier-web" --db "$DB" admin-bind --machine-id "$ADMIN_MACHINE" --username admin --create-user-password admin123
+"$WEB_BIN" --db "$DB" admin-bind --machine-id "$ADMIN_MACHINE" --username admin --create-user-password admin123
 
 echo "== 2. 启动 easytier-web（embed） =="
-"$BIN/easytier-web" --db "$DB" --config-server-port 22020 --api-server-port 11211 --no-web false >"$TMP/web.log" 2>&1 &
+"$WEB_BIN" --db "$DB" --config-server-port 22020 --api-server-port 11211 >"$TMP/web.log" 2>&1 &
 WEB_PID=$!
 trap 'kill $WEB_PID 2>/dev/null || true; rm -rf "$TMP"' EXIT
 sleep 2
 
 echo "== 3. 管理员登录 =="
-curl -s -c "$CJ" -b "$CJ" -X POST "$WEB/api/v1/auth/login" \
+LOGIN_RESP="$(curl -s -c "$CJ" -b "$CJ" -X POST "$WEB/api/v1/auth/login" \
   -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"admin123"}' >/dev/null
+  -d '{"username":"admin","password":"00000000000000000000000000000000"}')"
+echo "login: $LOGIN_RESP"
 
 echo "== 4. 创建邀请码 =="
 CODE="$(curl -s -c "$CJ" -b "$CJ" -X POST "$WEB/api/v1/invites" \
@@ -41,8 +43,9 @@ echo
 
 echo "== 6. 待审设备运行客户端（应不入网，无 tun 配置） =="
 sudo -n true 2>/dev/null || { echo "需要 sudo 权限跑客户端"; exit 1; }
-sudo -n env PATH="$PATH" "$BIN/easytier-core" -w "$CONFIG_SERVER" \
-  --machine-id "$DEVICE_MACHINE" --network-name anf-m3 --dhcp false \
+sudo -n env PATH="$PATH" "$CORE_BIN" -w "$CONFIG_SERVER" \
+  --machine-id "$DEVICE_MACHINE" --network-name anf-m3 \
+  --no-listener \
   >"$TMP/client-pending.log" 2>&1 &
 CLIENT_PID=$!
 sleep 6

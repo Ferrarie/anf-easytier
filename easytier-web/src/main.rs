@@ -322,7 +322,9 @@ async fn main() {
                     Some(id) => id,
                     None => match create_user_password {
                         Some(password) => {
-                            let hash = password_auth::generate_hash(&password);
+                            // 与前端约定一致：密码先 MD5 再 argon2
+                            let md5_hex = format!("{:x}", md5::compute(password.as_bytes()));
+                            let hash = password_auth::generate_hash(&md5_hex);
                             db.create_user_and_join_users_group(&username, hash)
                                 .await
                                 .unwrap()
