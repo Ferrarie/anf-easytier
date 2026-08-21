@@ -10,6 +10,7 @@ pub struct Model {
     pub device_id: i32,
     #[sea_orm(primary_key)]
     pub network_inst_id: String,
+    pub virtual_ip: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

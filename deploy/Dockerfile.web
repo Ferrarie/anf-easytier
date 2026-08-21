@@ -5,7 +5,7 @@ FROM ubuntu:24.04
 RUN apt-get update && apt-get install -y --no-install-recommends tzdata ca-certificates && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY target/release/easytier-web /usr/local/bin/easytier-web
+COPY bin/easytier-web /usr/local/bin/easytier-web
 
 ENV TZ=Asia/Shanghai
 

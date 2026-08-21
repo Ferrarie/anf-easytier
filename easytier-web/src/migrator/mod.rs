@@ -7,6 +7,7 @@ mod m20260514_000004_rename_web_config_source;
 mod m20260619_000005_managed_config_revisions;
 mod m20260820_000006_anf_invites_and_devices;
 mod m20260820_000007_anf_networks_tags;
+mod m20260821_000008_anf_device_virtual_ip;
 
 pub struct Migrator;
 
@@ -21,6 +22,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260619_000005_managed_config_revisions::Migration),
             Box::new(m20260820_000006_anf_invites_and_devices::Migration),
             Box::new(m20260820_000007_anf_networks_tags::Migration),
+            Box::new(m20260821_000008_anf_device_virtual_ip::Migration),
         ]
     }
 }

@@ -251,10 +251,12 @@ impl AclFilter {
             .get_src_peer_id()
             .map(|peer_id| route.get_peer_groups(peer_id))
             .unwrap_or_else(|| Arc::new(Vec::new()));
-        let dst_groups = packet
-            .get_dst_peer_id()
-            .map(|peer_id| route.get_peer_groups(peer_id))
-            .unwrap_or_else(|| Arc::new(Vec::new()));
+        // 出站报文在 ACL 检查时目的 peer 尚未路由（to_peer_id=0），
+        // 此时按目标 IP 解析对端组，保证 destination_groups 规则可匹配。
+        let dst_groups = match packet.get_dst_peer_id() {
+            Some(peer_id) if peer_id != 0 => route.get_peer_groups(peer_id),
+            _ => route.get_peer_groups_by_ip_sync(&parsed.dst_ip),
+        };
 
         Some(PacketInfo {
             src_ip: parsed.src_ip,
@@ -437,15 +439,27 @@ impl AclFilter {
 #[cfg(test)]
 mod tests {
     use std::{
+        collections::{BTreeSet, HashMap},
         net::{IpAddr, Ipv4Addr, Ipv6Addr},
         sync::Arc,
     };
 
+    use async_trait::async_trait;
+    use cidr::{Ipv4Cidr, Ipv6Cidr};
     use quanta::Instant;
 
-    use easytier_proto::acl::{Acl, ChainType, Protocol};
+    use easytier_proto::acl::{
+        Acl, AclV1, Action, Chain, ChainType, GroupIdentity, GroupInfo, Protocol, Rule,
+    };
 
-    use crate::peers::acl::processor::PacketInfo;
+    use crate::{
+        config::PeerId,
+        packet::{PacketType, ZCPacket},
+        peers::acl::processor::PacketInfo,
+        peers::route::{Route, RouteInterfaceBox},
+        proto::core_peer::peer::Route as CoreRoute,
+        proto::peer_rpc::RoutePeerInfo,
+    };
 
     use super::{
         AclFilter, IP_PROTO_ICMP, IP_PROTO_TCP, IP_PROTO_UDP, OutboundAllowRecord, acl_protocol,
@@ -469,6 +483,100 @@ mod tests {
             src_groups: Arc::new(Vec::new()),
             dst_groups: Arc::new(Vec::new()),
         }
+    }
+
+    /// 出站 ACL 测试桩：按 peer id 与按目标 IP 均可解析组。
+    struct StubRoute {
+        peer_groups: HashMap<u32, Vec<String>>,
+        ip_peer: HashMap<IpAddr, u32>,
+    }
+
+    #[async_trait]
+    impl Route for StubRoute {
+        async fn open(&self, _interface: RouteInterfaceBox) -> Result<u8, ()> {
+            Ok(0)
+        }
+        async fn close(&self) {}
+        async fn get_next_hop(&self, _peer_id: PeerId) -> Option<PeerId> {
+            None
+        }
+        async fn list_routes(&self) -> Vec<CoreRoute> {
+            vec![]
+        }
+        async fn list_proxy_cidrs(&self) -> BTreeSet<Ipv4Cidr> {
+            BTreeSet::new()
+        }
+        async fn list_proxy_cidrs_v6(&self) -> BTreeSet<Ipv6Cidr> {
+            BTreeSet::new()
+        }
+        async fn get_peer_info(&self, _peer_id: PeerId) -> Option<RoutePeerInfo> {
+            None
+        }
+        async fn get_peer_info_last_update_time(&self) -> Instant {
+            Instant::now()
+        }
+        fn get_peer_groups(&self, peer_id: PeerId) -> Arc<Vec<String>> {
+            Arc::new(self.peer_groups.get(&peer_id).cloned().unwrap_or_default())
+        }
+        fn get_peer_groups_by_ip_sync(&self, ip: &IpAddr) -> Arc<Vec<String>> {
+            self.ip_peer
+                .get(ip)
+                .map(|peer_id| self.get_peer_groups(*peer_id))
+                .unwrap_or_default()
+        }
+    }
+
+    fn office_acl() -> Acl {
+        Acl {
+            acl_v1: Some(AclV1 {
+                chains: vec![Chain {
+                    name: "anf-acl".to_string(),
+                    chain_type: ChainType::Outbound as i32,
+                    description: String::new(),
+                    enabled: true,
+                    rules: vec![Rule {
+                        name: "allow-office".to_string(),
+                        description: String::new(),
+                        priority: 100,
+                        enabled: true,
+                        protocol: Protocol::Any as i32,
+                        ports: vec![],
+                        source_ips: vec![],
+                        destination_ips: vec![],
+                        source_ports: vec![],
+                        action: Action::Allow as i32,
+                        rate_limit: 0,
+                        burst_limit: 0,
+                        stateful: false,
+                        source_groups: vec!["office".to_string()],
+                        destination_groups: vec!["office".to_string()],
+                    }],
+                    default_action: Action::Drop as i32,
+                }],
+                group: Some(GroupInfo {
+                    declares: vec![GroupIdentity {
+                        group_name: "office".to_string(),
+                        group_secret: String::new(),
+                    }],
+                    members: vec!["office".to_string()],
+                }),
+            }),
+        }
+    }
+
+    fn outbound_data_packet() -> ZCPacket {
+        let mut ip = vec![0u8; 40];
+        ip[0] = 0x45;
+        ip[2..4].copy_from_slice(&40u16.to_be_bytes());
+        ip[9] = IP_PROTO_TCP;
+        ip[12..16].copy_from_slice(&[10, 0, 0, 1]);
+        ip[16..20].copy_from_slice(&[10, 0, 0, 2]);
+        ip[20..22].copy_from_slice(&1234u16.to_be_bytes());
+        ip[22..24].copy_from_slice(&80u16.to_be_bytes());
+        let mut packet = ZCPacket::new_with_payload(&ip);
+        // 出站报文在 ACL 检查阶段目的 peer 尚未路由（to_peer_id=0）
+        packet.fill_peer_manager_hdr(7, 0, PacketType::Data as u8);
+        packet
     }
 
     #[test]
@@ -646,5 +754,49 @@ mod tests {
         filter.reload_rules(None);
 
         assert_eq!(filter.outbound_allow_records.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn outbound_group_rule_matches_dst_groups_by_ip_fallback() {
+        let filter = AclFilter::new();
+        filter.reload_rules(Some(&office_acl()));
+
+        let route = StubRoute {
+            peer_groups: HashMap::from([
+                (7u32, vec!["office".to_string()]),
+                (8u32, vec!["office".to_string()]),
+            ]),
+            ip_peer: HashMap::from([(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 2)), 8u32)]),
+        };
+
+        let allowed = filter.process_packet_with_acl(
+            &outbound_data_packet(),
+            false,
+            None,
+            |_| false,
+            &route,
+        );
+        assert!(allowed, "目标 peer 未知时按 IP 回退解析组，office->office 应放行");
+    }
+
+    #[tokio::test]
+    async fn outbound_group_rule_drops_when_dst_groups_unknown() {
+        let filter = AclFilter::new();
+        filter.reload_rules(Some(&office_acl()));
+
+        // 目标 IP 无对端（组未知）→ 规则不匹配 → 默认拒绝
+        let route = StubRoute {
+            peer_groups: HashMap::from([(7u32, vec!["office".to_string()])]),
+            ip_peer: HashMap::new(),
+        };
+
+        let allowed = filter.process_packet_with_acl(
+            &outbound_data_packet(),
+            false,
+            None,
+            |_| false,
+            &route,
+        );
+        assert!(!allowed, "目标组未知时应默认拒绝");
     }
 }

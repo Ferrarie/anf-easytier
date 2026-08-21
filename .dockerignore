@@ -1,0 +1,8 @@
+.git
+target
+node_modules
+easytier-gui
+pnpm-lock.yaml
+*.db
+.env
+out

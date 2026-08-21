@@ -3,12 +3,13 @@
 services:
   easytier-web:
     build:
-      context: ..
-      dockerfile: deploy/Dockerfile.web
+      context: .
+      dockerfile: Dockerfile.web
     container_name: anf-easytier-web
     restart: unless-stopped
     ports:
       - "11211:11211"
+      - "22020:22020/udp"
     volumes:
       - web-data:/app/data
     command:
@@ -28,19 +29,17 @@ services:
   # 中心 core（中继/兜底），测试阶段用 11110 避开官方 core 的 11010
   easytier-core:
     build:
-      context: ..
-      dockerfile: deploy/Dockerfile.core
+      context: .
+      dockerfile: Dockerfile.core
     container_name: anf-easytier-core
     restart: unless-stopped
     network_mode: host
     command:
-      - -d
       - --network-name
       - anf-m3
-      - --relay-udp-bind-addr
-      - "0.0.0.0:11110"
-      - --relay-tcp-bind-addr
-      - "0.0.0.0:11110"
+      - --listeners
+      - tcp://0.0.0.0:11110
+      - udp://0.0.0.0:11110
       - --network-secret
       - ${ANF_NETWORK_SECRET:-}
 

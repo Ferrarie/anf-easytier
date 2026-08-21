@@ -170,6 +170,11 @@ pub trait Route {
 
     fn get_peer_groups(&self, peer_id: PeerId) -> Arc<Vec<String>>;
 
+    /// 同步按目标 IP 解析 peer 组（出站报文在 ACL 阶段目的 peer 尚未确定时使用）。
+    fn get_peer_groups_by_ip_sync(&self, _ip: &std::net::IpAddr) -> Arc<Vec<String>> {
+        Arc::new(Vec::new())
+    }
+
     async fn refresh_acl_groups(&self) {}
 
     async fn get_peer_groups_by_ip(&self, ip: &std::net::IpAddr) -> Arc<Vec<String>> {

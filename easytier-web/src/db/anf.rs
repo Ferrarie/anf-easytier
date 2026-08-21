@@ -327,6 +327,15 @@ impl Db {
         }
 
         if let Some(networks) = networks {
+            // 保留已有虚拟 IP（同网络重新分配时不变化，保证地址稳定）
+            let existing_ips: std::collections::HashMap<String, String> =
+                device_networks::Entity::find()
+                    .filter(device_networks::Column::DeviceId.eq(id))
+                    .all(&txn)
+                    .await?
+                    .into_iter()
+                    .filter_map(|m| m.virtual_ip.map(|ip| (m.network_inst_id, ip)))
+                    .collect();
             device_networks::Entity::delete_many()
                 .filter(device_networks::Column::DeviceId.eq(id))
                 .exec(&txn)
@@ -338,7 +347,8 @@ impl Db {
                 }
                 device_networks::Entity::insert(device_networks::ActiveModel {
                     device_id: Set(id),
-                    network_inst_id: Set(network),
+                    network_inst_id: Set(network.clone()),
+                    virtual_ip: Set(existing_ips.get(&network).cloned()),
                 })
                 .exec(&txn)
                 .await?;
@@ -373,6 +383,56 @@ impl Db {
             .into_iter()
             .map(|m| m.network_inst_id)
             .collect())
+    }
+
+    /// 设备在某网络下已分配的虚拟 IP。
+    pub async fn get_device_network_ip(
+        &self,
+        device_id: i32,
+        network_id: &str,
+    ) -> Result<Option<String>, DbErr> {
+        use entity::device_networks;
+        Ok(device_networks::Entity::find()
+            .filter(device_networks::Column::DeviceId.eq(device_id))
+            .filter(device_networks::Column::NetworkInstId.eq(network_id))
+            .one(self.orm_db())
+            .await?
+            .and_then(|m| m.virtual_ip))
+    }
+
+    /// 某网络下全部已分配的虚拟 IP。
+    pub async fn list_network_used_virtual_ips(
+        &self,
+        network_id: &str,
+    ) -> Result<Vec<String>, DbErr> {
+        use entity::device_networks;
+        Ok(device_networks::Entity::find()
+            .filter(device_networks::Column::NetworkInstId.eq(network_id))
+            .all(self.orm_db())
+            .await?
+            .into_iter()
+            .filter_map(|m| m.virtual_ip)
+            .collect())
+    }
+
+    /// 持久化设备在某网络的虚拟 IP。
+    pub async fn set_device_network_ip(
+        &self,
+        device_id: i32,
+        network_id: &str,
+        ip: &str,
+    ) -> Result<(), DbErr> {
+        use entity::device_networks;
+        device_networks::Entity::update_many()
+            .filter(device_networks::Column::DeviceId.eq(device_id))
+            .filter(device_networks::Column::NetworkInstId.eq(network_id))
+            .col_expr(
+                device_networks::Column::VirtualIp,
+                sea_orm::prelude::Expr::value(ip.to_string()),
+            )
+            .exec(self.orm_db())
+            .await?;
+        Ok(())
     }
 
     /// SSH 引导：把机器码绑定为指定用户的管理员设备（幂等）。

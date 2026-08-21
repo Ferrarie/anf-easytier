@@ -49,6 +49,9 @@ easytier-gui/src-tauri/*.dll
 easytier-gui/src-tauri/*.sys
 /easytier-contrib/easytier-ohrs/dist/
 
+# ANF 部署本地二进制暂存（不入库）
+deploy/bin/
+
 .direnv
 .flake-profile
 

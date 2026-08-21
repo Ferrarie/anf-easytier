@@ -17,6 +17,7 @@ use crate::{
 };
 
 pub const REVISION_PREFIX: &str = "anf-v1-";
+const DEFAULT_NETWORK_CIDR: &str = "10.144.0.0/24";
 
 /// 托管配置模板：中心 mesh 的网络名/密钥/中心 peer。
 #[derive(Debug, Clone)]
@@ -62,14 +63,37 @@ pub enum AnfConfigError {
     Db(#[from] DbErr),
 }
 
-/// 网络实例 → 托管配置 instance_id（确定性名字 UUID，重启不变）。
+/// (网络实例, 设备) → 托管配置 instance_id（确定性名字 UUID，重启不变；每设备唯一）。
 /// 用 md5 生成 v3 风格 UUID，避免引入 uuid v5/sha1 新依赖。
-fn instance_id_for_network(network_id: &str) -> Uuid {
-    let digest = md5::compute(format!("anf://network/{network_id}"));
+fn instance_id_for_device_network(network_id: &str, machine_id: &Uuid) -> Uuid {
+    let digest = md5::compute(format!(
+        "anf://network/{network_id}/device/{machine_id}"
+    ));
     let mut bytes = digest.0;
     bytes[6] = (bytes[6] & 0x0f) | 0x30; // version 3
     bytes[8] = (bytes[8] & 0x3f) | 0x80; // RFC 4122 variant
     Uuid::from_bytes(bytes)
+}
+
+/// 解析 CIDR，返回 (首可用 IP u32, 末可用 IP u32)，跳过网络地址与广播地址。
+fn cidr_host_range(cidr: &str) -> Option<(u32, u32)> {
+    let (ip_part, prefix_part) = cidr.trim().split_once('/')?;
+    let ip: std::net::Ipv4Addr = ip_part.trim().parse().ok()?;
+    let prefix: u32 = prefix_part.trim().parse().ok()?;
+    if prefix > 30 {
+        return None;
+    }
+    let host_bits = 32 - prefix;
+    let network = u32::from(ip) & (u32::MAX << host_bits);
+    let broadcast = network | ((1u32 << host_bits) - 1);
+    if network + 1 >= broadcast {
+        return None;
+    }
+    Some((network + 1, broadcast - 1))
+}
+
+fn ipv4_from_u32(value: u32) -> String {
+    std::net::Ipv4Addr::from(value).to_string()
 }
 
 impl Db {
@@ -91,15 +115,28 @@ impl Db {
         let device_id = device.id;
         let device_tags = self.list_device_tags(device_id).await?;
         let network_ids = self.list_device_networks(device_id).await?;
+        self.allocate_device_virtual_ips(device_id, &network_ids).await?;
 
         let mut configs = Vec::with_capacity(network_ids.len());
         for network_id in &network_ids {
             let acl = self.compile_network_acl(network_id, &device_tags).await?;
-            let instance_id = instance_id_for_network(network_id);
+            let cidr = self
+                .get_network(network_id)
+                .await?
+                .and_then(|n| n.cidr)
+                .filter(|c| !c.trim().is_empty())
+                .unwrap_or_else(|| DEFAULT_NETWORK_CIDR.to_string());
+            let network_length = cidr
+                .rsplit_once('/')
+                .and_then(|(_, p)| p.trim().parse::<i32>().ok())
+                .unwrap_or(24);
+            let instance_id = instance_id_for_device_network(network_id, machine_id);
             let config = NetworkConfig {
                 instance_id: Some(instance_id.to_string()),
                 network_name: Some(template.network_name.clone()),
                 network_secret: template.network_secret.clone(),
+                virtual_ipv4: self.get_device_network_ip(device_id, network_id).await?,
+                network_length: Some(network_length),
                 networking_method: Some(NetworkingMethod::Manual as i32),
                 peer_urls: template.center_peer_url.iter().cloned().collect(),
                 hostname: Some(device.display_name.clone()),
@@ -115,6 +152,40 @@ impl Db {
         }
 
         Ok((configs, new_revision()))
+    }
+
+    /// 为设备在每个分配网络中分配未使用的虚拟 IP（已分配则复用），并持久化。
+    pub async fn allocate_device_virtual_ips(
+        &self,
+        device_id: i32,
+        network_ids: &[String],
+    ) -> Result<(), AnfConfigError> {
+        for network_id in network_ids {
+            if self.get_device_network_ip(device_id, network_id).await?.is_some() {
+                continue;
+            }
+            let cidr = self
+                .get_network(network_id)
+                .await?
+                .and_then(|n| n.cidr)
+                .filter(|c| !c.trim().is_empty())
+                .unwrap_or_else(|| DEFAULT_NETWORK_CIDR.to_string());
+            let Some((start, end)) = cidr_host_range(&cidr) else {
+                continue;
+            };
+            let used: std::collections::HashSet<u32> = self
+                .list_network_used_virtual_ips(network_id)
+                .await?
+                .iter()
+                .filter_map(|ip| ip.parse::<std::net::Ipv4Addr>().ok().map(u32::from))
+                .collect();
+            let Some(ip) = (start..=end).find(|candidate| !used.contains(candidate)) else {
+                continue;
+            };
+            self.set_device_network_ip(device_id, network_id, &ipv4_from_u32(ip))
+                .await?;
+        }
+        Ok(())
     }
 
     /// 解析中心用户（设备统一使用的 config server token 对应的用户名）。
@@ -270,6 +341,8 @@ mod tests {
                 vec!["tcp://10.0.0.6:11110".to_string()]
             );
             assert_eq!(parsed.hostname.as_deref(), Some(&machine_id.to_string()[..8]));
+            assert!(parsed.virtual_ipv4.is_some(), "应分配虚拟 IP");
+            assert_eq!(parsed.network_length, Some(24));
         }
     }
 
@@ -437,5 +510,44 @@ mod tests {
         assert_eq!(db.resolve_center_user("cfg-admin").await.unwrap(), admin);
         let err = db.resolve_center_user("missing-user").await.unwrap_err();
         assert!(matches!(err, AnfConfigError::CenterUserNotFound(_)));
+    }
+
+    #[tokio::test]
+    async fn virtual_ips_are_allocated_within_cidr_distinct_and_stable() {
+        let db = Db::memory_db().await;
+        let admin = admin_user(&db).await;
+        let net = db
+            .create_network("办公网", Some("10.99.0.0/24".to_string()))
+            .await
+            .unwrap();
+        let m1 = uuid::Uuid::new_v4();
+        let m2 = uuid::Uuid::new_v4();
+        register_approved_device(&db, admin, m1, &["办公"], &[&net.id]).await;
+        register_approved_device(&db, admin, m2, &["办公"], &[&net.id]).await;
+
+        let (c1, _) = db
+            .generate_device_managed_configs(&m1, &template())
+            .await
+            .unwrap();
+        let (c2, _) = db
+            .generate_device_managed_configs(&m2, &template())
+            .await
+            .unwrap();
+        let cfg1: NetworkConfig = serde_json::from_value(c1[0].network_config.clone()).unwrap();
+        let cfg2: NetworkConfig = serde_json::from_value(c2[0].network_config.clone()).unwrap();
+        let ip1 = cfg1.virtual_ipv4.unwrap();
+        let ip2 = cfg2.virtual_ipv4.unwrap();
+        assert_ne!(ip1, ip2);
+        assert_ne!(c1[0].instance_id, c2[0].instance_id, "同网络不同设备 instance_id 必须唯一");
+        assert!(ip1.starts_with("10.99.0."));
+        assert!(ip2.starts_with("10.99.0."));
+        assert_eq!(cfg1.network_length, Some(24));
+
+        let (c1b, _) = db
+            .generate_device_managed_configs(&m1, &template())
+            .await
+            .unwrap();
+        let cfg1b: NetworkConfig = serde_json::from_value(c1b[0].network_config.clone()).unwrap();
+        assert_eq!(cfg1b.virtual_ipv4.as_deref(), Some(ip1.as_str()));
     }
 }

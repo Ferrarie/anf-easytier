@@ -3388,6 +3388,16 @@ impl PeerRouteServiceImpl {
             .unwrap_or_default()
     }
 
+    fn get_peer_groups_by_ip_sync(&self, ip: &std::net::IpAddr) -> Arc<Vec<String>> {
+        let peer_id = match ip {
+            std::net::IpAddr::V4(ipv4) => self.route_table.get_peer_id_by_ipv4(ipv4),
+            std::net::IpAddr::V6(ipv6) => self.route_table.get_peer_id_by_ipv6(ipv6),
+        };
+        peer_id
+            .map(|peer_id| self.get_peer_groups(peer_id))
+            .unwrap_or_default()
+    }
+
     fn clean_dst_saved_map(&self, dst_peer_id: PeerId) {
         let Some(session) = self.get_session(dst_peer_id) else {
             return;
@@ -4486,6 +4496,10 @@ impl Route for PeerRoute {
 
     fn get_peer_groups(&self, peer_id: PeerId) -> Arc<Vec<String>> {
         self.service_impl.get_peer_groups(peer_id)
+    }
+
+    fn get_peer_groups_by_ip_sync(&self, ip: &std::net::IpAddr) -> Arc<Vec<String>> {
+        self.service_impl.get_peer_groups_by_ip_sync(ip)
     }
 
     async fn refresh_acl_groups(&self) {
