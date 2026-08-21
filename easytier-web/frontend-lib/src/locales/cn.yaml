@@ -247,6 +247,9 @@ about:
   description: 基于 EasyTier 的中心化组网客户端，支持设备注册审批、网络隔离与 ACL 访问控制。
   check_update: 检查更新
 
+admin:
+  hint: 当前未以管理员身份运行：创建虚拟网卡（TUN）等功能需要管理员权限，可通过右键“以管理员身份运行”启动本应用。
+
 event:
   Unknown: 未知
   TunDeviceReady: Tun设备就绪

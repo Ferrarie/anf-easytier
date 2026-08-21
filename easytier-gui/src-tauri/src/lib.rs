@@ -86,6 +86,20 @@ fn easytier_version() -> Result<String, String> {
     Ok(format!("{} (core {})", env!("CARGO_PKG_VERSION"), easytier::VERSION))
 }
 
+/// 是否以管理员身份运行（Windows 上创建 TUN 虚拟网卡需要）。
+/// 仅用于 UI 提示，不做任何自动提权。
+#[tauri::command]
+fn is_admin() -> bool {
+    #[cfg(not(target_os = "android"))]
+    {
+        elevate::Command::is_elevated()
+    }
+    #[cfg(target_os = "android")]
+    {
+        true
+    }
+}
+
 #[tauri::command]
 fn set_dock_visibility(app: tauri::AppHandle, visible: bool) -> Result<(), String> {
     #[cfg(target_os = "macos")]
@@ -1396,6 +1410,7 @@ pub fn run_gui() -> std::process::ExitCode {
             set_logging_level,
             set_tun_fd,
             easytier_version,
+            is_admin,
             set_dock_visibility,
             list_network_instance_ids,
             remove_network_instance,

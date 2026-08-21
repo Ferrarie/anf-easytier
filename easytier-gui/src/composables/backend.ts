@@ -78,6 +78,10 @@ export async function getEasytierVersion() {
   return await invoke<string>('easytier_version')
 }
 
+export async function isAdmin() {
+  return await invoke<boolean>('is_admin')
+}
+
 export async function listNetworkInstanceIds() {
   return await invoke<ListNetworkInstanceIdResponse>('list_network_instance_ids')
 }

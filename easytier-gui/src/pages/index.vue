@@ -16,7 +16,7 @@ import { useToast, useConfirm } from 'primevue'
 import { loadMode, saveMode, WebClientConfig, type Mode } from '~/composables/mode'
 import { saveLastNetworkInstanceId, loadLastNetworkInstanceId } from '~/composables/config'
 import ModeSwitcher from '~/components/ModeSwitcher.vue'
-import { getEasytierVersion, getServiceStatus } from '~/composables/backend'
+import { getEasytierVersion, getServiceStatus, isAdmin } from '~/composables/backend'
 
 const { t, locale } = useI18n()
 const confirm = useConfirm()
@@ -26,6 +26,16 @@ const currentMode = ref<Mode>({ mode: 'normal' })
 const editingMode = ref<Mode>({ mode: 'normal' })
 const isModeSaving = ref(false)
 const manualDisconnect = ref(false)
+const notAdmin = ref(false)
+
+onMounted(async () => {
+  try {
+    notAdmin.value = !(await isAdmin())
+  }
+  catch (e) {
+    console.warn('is_admin check failed', e)
+  }
+})
 
 const configServerDialogVisible = ref(false)
 const configServerConnected = ref(false)
@@ -448,6 +458,9 @@ const configServerConnectionStatus = computed(() => {
 
 <template>
   <div id="root" class="flex flex-col">
+    <Message v-if="notAdmin" severity="warn" :closable="true" class="m-2">
+      {{ t('admin.hint') }}
+    </Message>
     <Dialog v-model:visible="aboutVisible" modal :header="t('about.title')" :style="{ width: '70%' }">
       <About />
     </Dialog>

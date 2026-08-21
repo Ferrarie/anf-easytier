@@ -247,6 +247,9 @@ about:
   description: 'ANF EasyTier is a centralized networking client based on EasyTier, with device registration & approval, network isolation and ACL access control.'
   check_update: Check Update
 
+admin:
+  hint: 'Not running as administrator: creating the virtual NIC (TUN) requires administrator privileges. Right-click the app and choose "Run as administrator".'
+
 event:
   Unknown: Unknown
   TunDeviceReady: TunDeviceReady

@@ -35,6 +35,7 @@ declare global {
   const initService: typeof import('./composables/backend')['initService']
   const initWebClient: typeof import('./composables/backend')['initWebClient']
   const inject: typeof import('vue')['inject']
+  const isAdmin: typeof import('./composables/backend')['isAdmin']
   const isClientRunning: typeof import('./composables/backend')['isClientRunning']
   const isProxy: typeof import('vue')['isProxy']
   const isReactive: typeof import('vue')['isReactive']
@@ -162,6 +163,7 @@ declare module 'vue' {
     readonly initService: UnwrapRef<typeof import('./composables/backend')['initService']>
     readonly initWebClient: UnwrapRef<typeof import('./composables/backend')['initWebClient']>
     readonly inject: UnwrapRef<typeof import('vue')['inject']>
+    readonly isAdmin: UnwrapRef<typeof import('./composables/backend')['isAdmin']>
     readonly isClientRunning: UnwrapRef<typeof import('./composables/backend')['isClientRunning']>
     readonly isProxy: UnwrapRef<typeof import('vue')['isProxy']>
     readonly isReactive: UnwrapRef<typeof import('vue')['isReactive']>
