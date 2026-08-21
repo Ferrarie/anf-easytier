@@ -4,13 +4,15 @@
 //! TDD 用例见本文件底部 `tests` 模块。
 
 use easytier::proto::{
+    acl::Acl,
     api::manage::{NetworkingMethod, NetworkConfig},
 };
 use sea_orm::DbErr;
 use uuid::Uuid;
 
 use crate::{
-    db::Db,
+    client_manager::ClientManager,
+    db::{Db, UserIdInDb, anf::DeviceStatus},
     webhook::ManagedNetworkConfig,
 };
 
@@ -78,8 +80,125 @@ impl Db {
         machine_id: &Uuid,
         template: &AnfConfigTemplate,
     ) -> Result<(Vec<ManagedNetworkConfig>, String), AnfConfigError> {
-        todo!("Task 1 RED 桩：实现见后续步骤")
+        let Some(device) = self.get_device_by_machine_id(*machine_id).await? else {
+            return Err(AnfConfigError::DeviceNotFound(*machine_id));
+        };
+        let status = DeviceStatus::from_str(&device.status).unwrap_or(DeviceStatus::Pending);
+        if status != DeviceStatus::Approved {
+            return Ok((Vec::new(), new_revision()));
+        }
+
+        let device_id = device.id;
+        let device_tags = self.list_device_tags(device_id).await?;
+        let network_ids = self.list_device_networks(device_id).await?;
+
+        let mut configs = Vec::with_capacity(network_ids.len());
+        for network_id in &network_ids {
+            let acl = self.compile_network_acl(network_id, &device_tags).await?;
+            let instance_id = instance_id_for_network(network_id);
+            let config = NetworkConfig {
+                instance_id: Some(instance_id.to_string()),
+                network_name: Some(template.network_name.clone()),
+                network_secret: template.network_secret.clone(),
+                networking_method: Some(NetworkingMethod::Manual as i32),
+                peer_urls: template.center_peer_url.iter().cloned().collect(),
+                hostname: Some(device.display_name.clone()),
+                acl: Some(Acl {
+                    acl_v1: Some(acl),
+                }),
+                ..Default::default()
+            };
+            configs.push(ManagedNetworkConfig {
+                instance_id: instance_id.to_string(),
+                network_config: serde_json::to_value(&config)?,
+            });
+        }
+
+        Ok((configs, new_revision()))
     }
+
+    /// 解析中心用户（设备统一使用的 config server token 对应的用户名）。
+    pub async fn resolve_center_user(
+        &self,
+        center_user_name: &str,
+    ) -> Result<UserIdInDb, AnfConfigError> {
+        self.get_user_id(center_user_name)
+            .await?
+            .ok_or_else(|| AnfConfigError::CenterUserNotFound(center_user_name.to_string()))
+    }
+
+    /// 某网络下全部 approved 设备的 machine_id。
+    pub async fn list_network_approved_machine_ids(
+        &self,
+        network_id: &str,
+    ) -> Result<Vec<Uuid>, DbErr> {
+        let devices = self.list_network_devices(network_id).await?;
+        Ok(devices
+            .iter()
+            .filter_map(|d| Uuid::parse_str(&d.machine_id).ok())
+            .collect())
+    }
+}
+
+/// 为设备重新生成并下发全部托管配置（含新 revision）。
+pub async fn reconcile_device_configs(
+    client_mgr: &ClientManager,
+    db: &Db,
+    center_user_name: &str,
+    machine_id: Uuid,
+    template: &AnfConfigTemplate,
+) -> anyhow::Result<()> {
+    let center_user_id = db.resolve_center_user(center_user_name).await?;
+    let (configs, revision) = db
+        .generate_device_managed_configs(&machine_id, template)
+        .await?;
+    client_mgr
+        .reconcile_managed_network_configs(
+            center_user_id,
+            machine_id,
+            configs,
+            Some(revision),
+            None,
+        )
+        .await
+}
+
+/// 撤销设备的全部托管配置（reject/kick 时），并断开在线会话。
+pub async fn revoke_device_configs(
+    client_mgr: &ClientManager,
+    db: &Db,
+    center_user_name: &str,
+    machine_id: Uuid,
+) -> anyhow::Result<()> {
+    let center_user_id = db.resolve_center_user(center_user_name).await?;
+    client_mgr
+        .reconcile_managed_network_configs(
+            center_user_id,
+            machine_id,
+            Vec::new(),
+            Some(new_revision()),
+            None,
+        )
+        .await?;
+    client_mgr
+        .disconnect_session_by_machine_id(center_user_id, &machine_id)
+        .await;
+    Ok(())
+}
+
+/// 网络内全部 approved 设备重新生成配置（ACL 变更热更新）。
+pub async fn reconcile_network_device_configs(
+    client_mgr: &ClientManager,
+    db: &Db,
+    center_user_name: &str,
+    network_id: &str,
+    template: &AnfConfigTemplate,
+) -> anyhow::Result<()> {
+    let machine_ids = db.list_network_approved_machine_ids(network_id).await?;
+    for machine_id in machine_ids {
+        reconcile_device_configs(client_mgr, db, center_user_name, machine_id, template).await?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -309,5 +428,14 @@ mod tests {
             1
         );
         assert_ne!(rev_before, rev_after);
+    }
+
+    #[tokio::test]
+    async fn resolve_center_user_returns_id_or_clear_error() {
+        let db = Db::memory_db().await;
+        let admin = admin_user(&db).await;
+        assert_eq!(db.resolve_center_user("cfg-admin").await.unwrap(), admin);
+        let err = db.resolve_center_user("missing-user").await.unwrap_err();
+        assert!(matches!(err, AnfConfigError::CenterUserNotFound(_)));
     }
 }
