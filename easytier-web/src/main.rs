@@ -228,6 +228,41 @@ pub struct FeatureFlags {
         help = t!("cli.allow_auto_create_user").to_string()
     )]
     pub allow_auto_create_user: bool,
+
+    /// ANF 中心 mesh 网络名（须与中心 core 一致）。
+    #[arg(
+        long,
+        env = "ET_ANF_NETWORK_NAME",
+        default_value = "anf-m3",
+        help = "ANF 中心 mesh 网络名"
+    )]
+    pub anf_network_name: String,
+
+    /// ANF 中心 mesh 密钥（须与中心 core 一致；为空则节点间无法互连）。
+    #[arg(
+        long,
+        env = "ET_ANF_NETWORK_SECRET",
+        hide_env_values = true,
+        help = "ANF 中心 mesh 密钥"
+    )]
+    pub anf_network_secret: Option<String>,
+
+    /// ANF 中心 core peer 地址（如 tcp://10.0.0.6:11110）。
+    #[arg(
+        long,
+        env = "ET_ANF_CENTER_PEER_URL",
+        help = "ANF 中心 core peer 地址"
+    )]
+    pub anf_center_peer_url: Option<String>,
+
+    /// ANF 设备统一使用的 config server token（= 用户名）。
+    #[arg(
+        long,
+        env = "ET_ANF_CENTER_USER",
+        default_value = "admin",
+        help = "ANF 设备统一使用的 config server 用户名"
+    )]
+    pub anf_center_user: String,
 }
 
 impl LoggingConfigLoader for &Cli {

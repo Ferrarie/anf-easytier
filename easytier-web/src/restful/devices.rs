@@ -2,16 +2,22 @@
 
 use axum::{
     Json,
-    extract::{Path, Query},
+    extract::{Path, Query, State},
     routing::{get, post},
     Router,
 };
 use axum_login::AuthUser;
 use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::anf::config::{
+    AnfConfigTemplate, reconcile_device_configs, revoke_device_configs,
+};
+use crate::client_manager::ClientManager;
 use crate::db::{Db, anf::{AnfError, DeviceStatus}, entity};
+use crate::FeatureFlags;
 
 use super::{AdminSession, AppStateInner, HttpHandleError, convert_db_error, other_error};
 
@@ -145,30 +151,62 @@ async fn list(
 async fn approve(
     admin: AdminSession,
     db: axum::Extension<Db>,
+    State(client_mgr): State<AppStateInner>,
+    axum::Extension(feature_flags): axum::Extension<Arc<FeatureFlags>>,
     Path(id): Path<i32>,
 ) -> Result<Json<DeviceJson>, HttpHandleError> {
-    set_status_impl(admin, db, id, DeviceStatus::Approved).await
+    set_status_impl(
+        admin,
+        db,
+        client_mgr,
+        feature_flags,
+        id,
+        DeviceStatus::Approved,
+    )
+    .await
 }
 
 async fn reject(
     admin: AdminSession,
     db: axum::Extension<Db>,
+    State(client_mgr): State<AppStateInner>,
+    axum::Extension(feature_flags): axum::Extension<Arc<FeatureFlags>>,
     Path(id): Path<i32>,
 ) -> Result<Json<DeviceJson>, HttpHandleError> {
-    set_status_impl(admin, db, id, DeviceStatus::Rejected).await
+    set_status_impl(
+        admin,
+        db,
+        client_mgr,
+        feature_flags,
+        id,
+        DeviceStatus::Rejected,
+    )
+    .await
 }
 
 async fn kick(
     admin: AdminSession,
     db: axum::Extension<Db>,
+    State(client_mgr): State<AppStateInner>,
+    axum::Extension(feature_flags): axum::Extension<Arc<FeatureFlags>>,
     Path(id): Path<i32>,
 ) -> Result<Json<DeviceJson>, HttpHandleError> {
-    set_status_impl(admin, db, id, DeviceStatus::Kicked).await
+    set_status_impl(
+        admin,
+        db,
+        client_mgr,
+        feature_flags,
+        id,
+        DeviceStatus::Kicked,
+    )
+    .await
 }
 
 async fn set_status_impl(
     admin: AdminSession,
     axum::Extension(db): axum::Extension<Db>,
+    client_mgr: Arc<ClientManager>,
+    feature_flags: Arc<FeatureFlags>,
     id: i32,
     status: DeviceStatus,
 ) -> Result<Json<DeviceJson>, HttpHandleError> {
@@ -177,12 +215,53 @@ async fn set_status_impl(
         .set_device_status(id, status, actor)
         .await
         .map_err(map_anf_error)?;
+    let machine_id = device.machine_id.parse::<Uuid>().map_err(|e| {
+        (
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            Json::from(other_error(format!("设备机器码非法: {e}"))),
+        )
+    })?;
+    let template = AnfConfigTemplate::new(
+        &feature_flags.anf_network_name,
+        feature_flags.anf_network_secret.clone(),
+        feature_flags.anf_center_peer_url.clone(),
+    );
+    let result = match status {
+        DeviceStatus::Approved => {
+            reconcile_device_configs(
+                &client_mgr,
+                &db,
+                &feature_flags.anf_center_user,
+                machine_id,
+                &template,
+            )
+            .await
+        }
+        DeviceStatus::Rejected | DeviceStatus::Kicked => {
+            revoke_device_configs(
+                &client_mgr,
+                &db,
+                &feature_flags.anf_center_user,
+                machine_id,
+            )
+            .await
+        }
+        _ => Ok(()),
+    };
+    if let Err(e) = result {
+        return Err((
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            Json::from(other_error(format!("状态已更新但配置下发失败: {e}"))),
+        ));
+    }
     Ok(Json(DeviceJson::from_model(&db, device).await?))
 }
 
 async fn update(
     admin: AdminSession,
     axum::Extension(db): axum::Extension<Db>,
+    State(client_mgr): State<AppStateInner>,
+    axum::Extension(feature_flags): axum::Extension<Arc<FeatureFlags>>,
     Path(id): Path<i32>,
     Json(req): Json<UpdateDeviceRequest>,
 ) -> Result<Json<DeviceJson>, HttpHandleError> {
@@ -191,5 +270,33 @@ async fn update(
         .update_device(id, req.display_name, req.tags, req.networks)
         .await
         .map_err(map_anf_error)?;
+    let status = DeviceStatus::from_str(&device.status).unwrap_or(DeviceStatus::Pending);
+    if status == DeviceStatus::Approved {
+        let machine_id = device.machine_id.parse::<Uuid>().map_err(|e| {
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                Json::from(other_error(format!("设备机器码非法: {e}"))),
+            )
+        })?;
+        let template = AnfConfigTemplate::new(
+            &feature_flags.anf_network_name,
+            feature_flags.anf_network_secret.clone(),
+            feature_flags.anf_center_peer_url.clone(),
+        );
+        reconcile_device_configs(
+            &client_mgr,
+            &db,
+            &feature_flags.anf_center_user,
+            machine_id,
+            &template,
+        )
+        .await
+        .map_err(|e| {
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                Json::from(other_error(format!("分配已保存但配置下发失败: {e}"))),
+            )
+        })?;
+    }
     Ok(Json(DeviceJson::from_model(&db, device).await?))
 }

@@ -333,6 +333,7 @@ impl RestfulServer {
             )
             .route("/api/v1/parse-config", post(Self::handle_parse_config))
             .layer(Extension(self.oidc_config.clone()))
+            .layer(Extension(self.feature_flags.clone()))
             .layer(Extension(self.db.clone()))
             .layer(MessagesManagerLayer)
             .layer(auth_layer)

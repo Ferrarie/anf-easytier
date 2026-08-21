@@ -19,7 +19,11 @@ rm -f "$DB"
 "$WEB_BIN" --db "$DB" admin-bind --machine-id "$ADMIN_MACHINE" --username admin --create-user-password admin123
 
 echo "== 2. 启动 easytier-web（embed） =="
-"$WEB_BIN" --db "$DB" --config-server-port 22020 --api-server-port 11211 >"$TMP/web.log" 2>&1 &
+"$WEB_BIN" --db "$DB" --config-server-port 22020 --api-server-port 11211 \
+  --anf-network-name "${ANF_NETWORK_NAME:-anf-m3}" \
+  --anf-network-secret "${ANF_NETWORK_SECRET:-}" \
+  --anf-center-peer-url "${ANF_CENTER_PEER_URL:-tcp://10.0.0.6:11110}" \
+  >"$TMP/web.log" 2>&1 &
 WEB_PID=$!
 trap 'kill $WEB_PID 2>/dev/null || true; rm -rf "$TMP"' EXIT
 sleep 2

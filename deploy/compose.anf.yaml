@@ -18,6 +18,12 @@ services:
       - "22020"
       - --api-server-port
       - "11211"
+      - --anf-network-name
+      - ${ANF_NETWORK_NAME:-anf-m3}
+      - --anf-network-secret
+      - ${ANF_NETWORK_SECRET:-}
+      - --anf-center-peer-url
+      - ${ANF_CENTER_PEER_URL:-tcp://10.0.0.6:11110}
 
   # 中心 core（中继/兜底），测试阶段用 11110 避开官方 core 的 11010
   easytier-core:
@@ -35,6 +41,8 @@ services:
       - "0.0.0.0:11110"
       - --relay-tcp-bind-addr
       - "0.0.0.0:11110"
+      - --network-secret
+      - ${ANF_NETWORK_SECRET:-}
 
 volumes:
   web-data:

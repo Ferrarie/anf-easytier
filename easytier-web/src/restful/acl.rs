@@ -2,15 +2,19 @@
 
 use axum::{
     Json,
-    extract::Path,
+    extract::{Path, State},
     http::StatusCode,
     routing::{delete, post},
     Router,
 };
 use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
+use crate::anf::config::{AnfConfigTemplate, reconcile_network_device_configs};
+use crate::client_manager::ClientManager;
 use crate::db::{Db, anf_networks::NewAclRule};
+use crate::FeatureFlags;
 
 use super::{AdminSession, AppStateInner, HttpHandleError, other_error};
 
@@ -93,18 +97,50 @@ fn map_err(e: crate::db::anf_networks::AnfNetError) -> HttpHandleError {
 pub fn router() -> Router<AppStateInner> {
     Router::new()
         .route("/api/v1/networks/:id/rules", post(create).get(list))
-        .route("/api/v1/networks/:id/rules/:ruleId", delete(remove))
+        .route(
+            "/api/v1/networks/:id/rules/:ruleId",
+            delete(remove).patch(update),
+        )
+}
+
+async fn reconcile_after_acl_change(
+    client_mgr: &ClientManager,
+    db: &Db,
+    feature_flags: &Arc<FeatureFlags>,
+    network_id: &str,
+) -> Result<(), HttpHandleError> {
+    let template = AnfConfigTemplate::new(
+        &feature_flags.anf_network_name,
+        feature_flags.anf_network_secret.clone(),
+        feature_flags.anf_center_peer_url.clone(),
+    );
+    reconcile_network_device_configs(
+        client_mgr,
+        db,
+        &feature_flags.anf_center_user,
+        network_id,
+        &template,
+    )
+    .await
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json::from(other_error(format!("规则已保存但配置下发失败: {e}"))),
+        )
+    })
 }
 
 async fn create(
     _admin: AdminSession,
     axum::Extension(db): axum::Extension<Db>,
+    State(client_mgr): State<AppStateInner>,
+    axum::Extension(feature_flags): axum::Extension<Arc<FeatureFlags>>,
     Path(id): Path<String>,
     Json(req): Json<RuleRequest>,
 ) -> Result<Json<RuleJson>, HttpHandleError> {
     let rule = db
         .create_acl_rule(&NewAclRule {
-            network_inst_id: id,
+            network_inst_id: id.clone(),
             name: req.name,
             enabled: req.enabled,
             source_tags: req.source_tags,
@@ -116,6 +152,36 @@ async fn create(
         })
         .await
         .map_err(map_err)?;
+    reconcile_after_acl_change(&client_mgr, &db, &feature_flags, &id).await?;
+    Ok(Json(rule.into()))
+}
+
+async fn update(
+    _admin: AdminSession,
+    axum::Extension(db): axum::Extension<Db>,
+    State(client_mgr): State<AppStateInner>,
+    axum::Extension(feature_flags): axum::Extension<Arc<FeatureFlags>>,
+    Path((id, rule_id)): Path<(String, i32)>,
+    Json(req): Json<RuleRequest>,
+) -> Result<Json<RuleJson>, HttpHandleError> {
+    let rule = db
+        .update_acl_rule(
+            rule_id,
+            &NewAclRule {
+                network_inst_id: id.clone(),
+                name: req.name,
+                enabled: req.enabled,
+                source_tags: req.source_tags,
+                destination_tags: req.destination_tags,
+                protocol: req.protocol,
+                ports: req.ports,
+                action: req.action,
+                priority: req.priority,
+            },
+        )
+        .await
+        .map_err(map_err)?;
+    reconcile_after_acl_change(&client_mgr, &db, &feature_flags, &id).await?;
     Ok(Json(rule.into()))
 }
 
@@ -139,8 +205,11 @@ async fn list(
 async fn remove(
     _admin: AdminSession,
     axum::Extension(db): axum::Extension<Db>,
+    State(client_mgr): State<AppStateInner>,
+    axum::Extension(feature_flags): axum::Extension<Arc<FeatureFlags>>,
     Path((_id, rule_id)): Path<(String, i32)>,
 ) -> Result<StatusCode, HttpHandleError> {
     db.delete_acl_rule(rule_id).await.map_err(map_err)?;
+    reconcile_after_acl_change(&client_mgr, &db, &feature_flags, &_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
