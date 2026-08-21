@@ -149,3 +149,19 @@ export async function initWebClient(url?: string) {
 export async function isWebClientConnected() {
   return await invoke<boolean>('is_web_client_connected')
 }
+
+export async function anfLoadConfig(): Promise<string> {
+  return await invoke<string>('anf_load_config')
+}
+
+export async function anfSaveConfig(cfg: unknown): Promise<string> {
+  return await invoke<string>('anf_save_config', { cfgJson: JSON.stringify(cfg) })
+}
+
+export async function anfGetMachineId(): Promise<string> {
+  return await invoke<string>('anf_get_machine_id')
+}
+
+export async function anfNormalizeAddress(address: string): Promise<string> {
+  return await invoke<string>('anf_normalize_address', { address })
+}
