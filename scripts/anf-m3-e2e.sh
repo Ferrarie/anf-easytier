@@ -61,8 +61,25 @@ DEV_ID="$(python3 -c 'import sys,json;print(json.load(open(sys.argv[1]))["id"])'
 curl -s -c "$CJ" -b "$CJ" -X POST "$WEB/api/v1/devices/$DEV_ID/approve" >/dev/null
 echo "设备 $DEV_ID 已放行"
 
-echo "== 8. 客户端应获得配置并建立网络 =="
+echo "== 8. 创建网络并分配（触发配置生成/下发） =="
+NET="$(curl -s -c "$CJ" -b "$CJ" -X POST "$WEB/api/v1/networks" \
+  -H 'Content-Type: application/json' -d '{"name":"办公网","cidr":"10.99.0.0/24"}')"
+echo "net: $NET"
+NET_ID="$(python3 -c 'import sys,json;print(json.loads(sys.argv[1])["id"])' "$NET")"
+curl -s -c "$CJ" -b "$CJ" -X PATCH "$WEB/api/v1/devices/$DEV_ID" \
+  -H 'Content-Type: application/json' \
+  -d "{\"tags\":[\"办公\"],\"networks\":[\"$NET_ID\"]}" >/dev/null
+echo "设备 $DEV_ID 已分配网络 $NET_ID（tag: 办公）"
+
+echo "== 9. 客户端应获得配置并启动实例 =="
 sleep 8
 tail -8 "$TMP/client-pending.log" || true
+echo
+if grep -q "instance .* started" "$TMP/client-pending.log"; then
+  echo "== 完成：客户端已收到托管配置并启动实例 =="
+else
+  echo "== 完成（客户端日志未见实例启动，请检查 web 日志） =="
+  tail -20 "$TMP/web.log" || true
+fi
 
 echo "== 完成 =="
