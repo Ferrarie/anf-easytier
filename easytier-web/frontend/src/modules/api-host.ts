@@ -10,7 +10,7 @@ let apiMeta: {
 // remove trailing slashes from the URL
 const cleanUrl = (url: string) => url.replace(/\/+$/, '');
 
-const defaultApiHost = cleanUrl(apiMeta?.api_host ?? `${location.origin}${location.pathname}`);
+const defaultApiHost = cleanUrl(apiMeta?.api_host || `${location.origin}${location.pathname}`);
 
 const isValidHttpUrl = (s: string): boolean => {
     let url;
