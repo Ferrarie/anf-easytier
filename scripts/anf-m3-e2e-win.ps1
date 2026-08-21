@@ -23,7 +23,8 @@ param(
     [string]$ConfigServer = 'udp://10.0.0.6:22020/admin',
     [string]$BindIp = '10.0.0.3',
     [string]$CoreBin = 'D:\Project\anf-easytier\target\release\easytier-core.exe',
-    [string]$NetworkName = 'anf-m3'
+    [string]$NetworkName = 'anf-m3',
+    [switch]$Elevate
 )
 
 $ErrorActionPreference = 'Stop'
@@ -86,12 +87,23 @@ Write-Host "    设备 id: $DeviceId  状态: $($RegResp.status)"
 if (-not $DeviceId) { throw "设备注册失败：$($RegResp | ConvertTo-Json -Compress)" }
 
 # 4. 客户端以 --no-tun 用户态运行（待审阶段应不入网）
-Write-Host '== 4. 启动客户端（--no-tun --no-listener，待审）'
-$clientArgs = @('-w', $ConfigServer, '--machine-id', $DeviceMachine, '--network-name', $NetworkName, '--no-tun', '--no-listener')
-$proc = Start-Process -FilePath $CoreBin -ArgumentList $clientArgs -RedirectStandardOutput $ClientLog -RedirectStandardError "$ClientLog.err" -PassThru -WindowStyle Hidden
+$runMode = '提权'
+if (-not $Elevate) { $runMode = '普通' }
+Write-Host "== 4. 启动客户端（$runMode，--no-listener，待审）"
+if ($Elevate) {
+    $runner = 'D:\Project\anf-easytier\scripts\run-anf-client-elevated.ps1'
+    Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',$runner,'-ConfigServer',$ConfigServer,'-MachineId',$DeviceMachine,'-NetworkName',$NetworkName,'-LogDir',$Tmp | Out-Null
+    $ClientLog = Join-Path $Tmp 'client.out.log'
+    $ClientErr = Join-Path $Tmp 'client.err.log'
+}
+else {
+    $clientArgs = @('-w', $ConfigServer, '--machine-id', $DeviceMachine, '--network-name', $NetworkName, '--no-tun', '--no-listener')
+    $proc = Start-Process -FilePath $CoreBin -ArgumentList $clientArgs -RedirectStandardOutput $ClientLog -RedirectStandardError "$ClientLog.err" -PassThru -WindowStyle Hidden
+    $ClientErr = "$ClientLog.err"
+}
 Start-Sleep -Seconds 8
 Write-Host '    -- 客户端日志（待审阶段）--'
-Get-Content $ClientLog, "$ClientLog.err" -ErrorAction SilentlyContinue | Select-Object -Last 8
+Get-Content $ClientLog, $ClientErr -ErrorAction SilentlyContinue | Select-Object -Last 8
 
 # 5. 管理员放行
 Write-Host "== 5. 放行设备 $DeviceId"
@@ -113,12 +125,19 @@ Write-Host "    设备 $DeviceId 已分配网络 $NetId（tag: 办公）"
 Write-Host '== 8. 等待配置下发与实例启动（12s）'
 Start-Sleep -Seconds 12
 Write-Host '    -- 客户端日志（放行后）--'
-Get-Content $ClientLog, "$ClientLog.err" -ErrorAction SilentlyContinue | Select-Object -Last 15
+Get-Content $ClientLog, $ClientErr -ErrorAction SilentlyContinue | Select-Object -Last 15
 
 # 9. 核对设备状态
 $DevState = Invoke-AnfApi -Method GET -Path "/api/v1/devices/$DeviceId" -Auth | ConvertFrom-Json
 Write-Host "    设备状态: $($DevState.status)"
 
 # 10. 清理
-Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+if ($Elevate) {
+    $runner = 'D:\Project\anf-easytier\scripts\run-anf-client-elevated.ps1'
+    Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',$runner,'-Kill','-LogDir',$Tmp | Out-Null
+    Start-Sleep -Seconds 2
+}
+else {
+    Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+}
 Write-Host "== 完成（日志目录: $Tmp）"
