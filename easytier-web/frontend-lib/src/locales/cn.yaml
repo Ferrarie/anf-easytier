@@ -244,7 +244,7 @@ about:
   author: 作者
   homepage: 主页
   license: 许可证
-  description: 一个简单、安全、去中心化的内网穿透 VPN 组网方案，使用 Rust 语言和 Tokio 框架实现。
+  description: 基于 EasyTier 的中心化组网客户端，支持设备注册审批、网络隔离与 ACL 访问控制。
   check_update: 检查更新
 
 event:

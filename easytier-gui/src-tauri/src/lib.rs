@@ -83,7 +83,7 @@ macro_rules! get_client_manager {
 
 #[tauri::command]
 fn easytier_version() -> Result<String, String> {
-    Ok(easytier::VERSION.to_string())
+    Ok(format!("{} (core {})", env!("CARGO_PKG_VERSION"), easytier::VERSION))
 }
 
 #[tauri::command]
@@ -1278,8 +1278,8 @@ mod service {
             args: opts.to_args_vec(),
             work_directory: std::env::current_dir()?,
             disable_autostart: false,
-            description: Some("EasyTier Gui Service".to_string()),
-            display_name: Some("EasyTier Gui Service".to_string()),
+            description: Some("ANF EasyTier Service".to_string()),
+            display_name: Some("ANF EasyTier Service".to_string()),
             disable_restart_on_failure: false,
         };
         service

@@ -244,7 +244,7 @@ about:
   author: Author
   homepage: Homepage
   license: License
-  description: 'EasyTier is a simple, safe and decentralized VPN networking solution implemented with the Rust language and Tokio framework.'
+  description: 'ANF EasyTier is a centralized networking client based on EasyTier, with device registration & approval, network isolation and ACL access control.'
   check_update: Check Update
 
 event:

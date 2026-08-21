@@ -136,6 +136,40 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299"
 
 [[package]]
+name = "anf-easytier"
+version = "2.6.4-anf.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "dashmap",
+ "dunce",
+ "easytier",
+ "easytier-core",
+ "gethostname 1.1.0",
+ "libc",
+ "once_cell",
+ "security-framework-sys",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-clipboard-manager",
+ "tauri-plugin-os",
+ "tauri-plugin-positioner",
+ "tauri-plugin-process",
+ "tauri-plugin-shell",
+ "tauri-plugin-single-instance",
+ "tauri-plugin-vpnservice",
+ "thunk-rs",
+ "tokio",
+ "url",
+ "uuid",
+ "winapi",
+ "windows 0.52.0",
+]
+
+[[package]]
 name = "anstream"
 version = "0.6.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2503,40 +2537,6 @@ dependencies = [
  "thunk-rs",
  "tokio",
  "uuid",
-]
-
-[[package]]
-name = "easytier-gui"
-version = "2.6.4"
-dependencies = [
- "anyhow",
- "async-trait",
- "chrono",
- "dashmap",
- "dunce",
- "easytier",
- "easytier-core",
- "gethostname 1.1.0",
- "libc",
- "once_cell",
- "security-framework-sys",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-clipboard-manager",
- "tauri-plugin-os",
- "tauri-plugin-positioner",
- "tauri-plugin-process",
- "tauri-plugin-shell",
- "tauri-plugin-single-instance",
- "tauri-plugin-vpnservice",
- "thunk-rs",
- "tokio",
- "url",
- "uuid",
- "winapi",
- "windows 0.52.0",
 ]
 
 [[package]]

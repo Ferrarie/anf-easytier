@@ -16,9 +16,9 @@
     ],
     "createUpdaterArtifacts": false
   },
-  "productName": "easytier-gui",
-  "version": "2.6.4",
-  "identifier": "com.kkrainbow.easytier",
+  "productName": "anf-easytier",
+  "version": "2.6.4-anf.1",
+  "identifier": "com.anidev.anfeasytier",
   "plugins": {
     "shell": {
       "open": "^.+"
@@ -27,7 +27,7 @@
   "app": {
     "windows": [
       {
-        "title": "easytier-gui",
+        "title": "ANF EasyTier",
         "width": 800,
         "height": 600
       }

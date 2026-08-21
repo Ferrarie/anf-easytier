@@ -52,6 +52,12 @@ easytier-gui/src-tauri/*.sys
 # ANF 部署本地二进制暂存（不入库）
 deploy/bin/
 
+# Serena 项目数据（记忆/缓存/本地配置）
+.serena/
+
+# ANF Windows 客户端发布产物
+dist/
+
 .direnv
 .flake-profile
 

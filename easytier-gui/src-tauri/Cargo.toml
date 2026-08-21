@@ -1,7 +1,7 @@
 [package]
-name = "easytier-gui"
-version = "2.6.4"
-description = "EasyTier GUI"
+name = "anf-easytier"
+version = "2.6.4-anf.1"
+description = "ANF EasyTier 客户端（中心化组网）"
 authors = ["you"]
 edition.workspace = true
 
