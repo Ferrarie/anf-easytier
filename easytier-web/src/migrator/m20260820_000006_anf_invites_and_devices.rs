@@ -87,6 +87,18 @@ impl MigrationTrait for Migration {
                 );
 
                 INSERT OR IGNORE INTO groups (name) VALUES ('superusers');
+
+                -- 确保内置 admin 账号属于 superusers 组，否则管理后台（AdminSession）
+                -- 的 is_superuser 校验会 403。幂等：仅当 admin 尚未加入时插入。
+                INSERT INTO users_groups (user_id, group_id)
+                SELECT u.id, g.id
+                FROM users u, groups g
+                WHERE u.username = 'admin'
+                  AND g.name = 'superusers'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM users_groups ug
+                      WHERE ug.user_id = u.id AND ug.group_id = g.id
+                  );
                 "#,
             )
             .await?;

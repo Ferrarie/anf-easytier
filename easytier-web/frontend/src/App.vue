@@ -4,7 +4,7 @@ import { onMounted } from 'vue';
 import { Toast, DynamicDialog } from 'primevue';
 
 onMounted(async () => {
-  await I18nUtils.loadLanguageAsync(localStorage.getItem('lang') || 'en')
+  await I18nUtils.loadLanguageAsync(localStorage.getItem('lang') || 'cn')
 });
 
 </script>

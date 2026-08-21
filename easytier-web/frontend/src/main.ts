@@ -22,6 +22,7 @@ import TagManagementPage from './components/TagManagementPage.vue'
 import AclEditorPage from './components/AclEditorPage.vue'
 import DialogService from 'primevue/dialogservice';
 import ToastService from 'primevue/toastservice';
+import ApiClient from './modules/api';
 
 const routes = [
     {
@@ -109,6 +110,34 @@ const router = createRouter({
     history: createWebHashHistory(),
     routes,
 })
+
+// 登录态守卫：进入 /h/:apiHost （及子路由）前，用后端会话 cookie 校验真实登录态，
+// 避免 localStorage 残留 apiHost 时“退出后新开页面仍显示已登录”。
+router.beforeEach(async (to) => {
+    if (to.path.startsWith('/h/')) {
+        const apiHost = to.params.apiHost as string | undefined;
+        if (!apiHost) {
+            return { name: 'login' };
+        }
+        let host: string;
+        try {
+            host = atob(apiHost);
+        } catch {
+            return { name: 'login' };
+        }
+        try {
+            const client = new ApiClient(host);
+            const ok = await client.check_login_status();
+            if (!ok) {
+                return { name: 'login' };
+            }
+        } catch {
+            return { name: 'login' };
+        }
+    }
+    // 其余路由放行
+    return true;
+});
 
 const app = createApp(App)
 

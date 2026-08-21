@@ -25,6 +25,20 @@ const api = computed<ApiClient | undefined>(() => {
 const dialog = useDialog();
 
 const userMenu = ref();
+
+// 统一的退出登录逻辑：清服务端会话 + 前端本地缓存，然后回登录页
+const doLogout = async () => {
+    try {
+        await api.value?.logout();
+    } catch (e) {
+        console.error("logout failed", e);
+    }
+    // 清除前端路由/登录态依据，避免残留 localStorage 导致“新开页面仍登录”
+    localStorage.removeItem('apiHost');
+    localStorage.removeItem('apiHosts');
+    router.push({ name: 'login' });
+};
+
 const userMenuItems = ref([
     {
         label: t('web.main.change_password'),
@@ -46,14 +60,7 @@ const userMenuItems = ref([
     {
         label: t('web.main.logout'),
         icon: 'pi pi-sign-out',
-        command: async () => {
-            try {
-                await api.value?.logout();
-            } catch (e) {
-                console.error("logout failed", e);
-            }
-            router.push({ name: 'login' });
-        },
+        command: doLogout,
     },
 ])
 
@@ -194,9 +201,9 @@ onUnmounted(() => {
                 </li>
                 <li>
                     <Button variant="text" class="w-full justify-start gap-x-3 pl-1.5 sidebar-button"
-                        severity="contrast" @click="router.push({ name: 'login' })">
-                        <i class="pi pi-sign-in text-xl"></i>
-                        <span class="mb-0.5">{{ t('web.main.login_page') }}</span>
+                        severity="contrast" @click="doLogout">
+                        <i class="pi pi-sign-out text-xl"></i>
+                        <span class="mb-0.5">{{ t('web.main.logout') }}</span>
                     </Button>
                 </li>
             </ul>

@@ -56,7 +56,7 @@ onMounted(load);
     <div>
         <h1 class="text-xl font-semibold mb-4">邀请码管理</h1>
 
-        <div class="flex items-end gap-3 mb-6 p-4 border rounded-lg">
+        <div class="flex flex-wrap items-end gap-x-4 gap-y-3 mb-6 p-4 border rounded-lg">
             <div class="p-field">
                 <label class="block text-sm font-medium">最大使用次数</label>
                 <InputNumber v-model="maxUses" :min="1" class="w-32" />
@@ -65,8 +65,10 @@ onMounted(load);
                 <label class="block text-sm font-medium">过期时间（可留空）</label>
                 <InputText v-model="expiresAt" type="datetime-local" class="w-64" />
             </div>
-            <Button label="生成邀请码" icon="pi pi-plus" @click="create" />
-            <Button label="刷新" icon="pi pi-refresh" severity="secondary" @click="load" />
+            <div class="flex items-center gap-2">
+                <Button label="生成邀请码" icon="pi pi-plus" @click="create" />
+                <Button label="刷新" icon="pi pi-refresh" severity="secondary" @click="load" />
+            </div>
         </div>
 
         <DataTable :value="invites" :loading="loading" striped-rows class="w-full">
