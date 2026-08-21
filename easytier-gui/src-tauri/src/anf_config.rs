@@ -154,6 +154,37 @@ pub fn get_or_create_machine_id(cfg: &mut AppConfig) -> String {
     id
 }
 
+/// 归一化服务器地址为配置源 URL：
+/// - 已带 scheme（tcp/udp/ws/wss）→ 小写化并透传；
+/// - 形如 `host:port` / `ip:port` → 默认 `<tcp>://host:port`；
+/// - 缺端口 → 报错并给出示例。
+pub fn normalize_address(raw: &str) -> Result<String, String> {
+    let s = raw.trim();
+    if s.is_empty() {
+        return Err("服务器地址不能为空".to_string());
+    }
+    if let Some(idx) = s.find("://") {
+        let scheme = s[..idx].to_lowercase();
+        if !matches!(scheme.as_str(), "tcp" | "udp" | "ws" | "wss") {
+            return Err(format!("不支持的协议: {scheme}"));
+        }
+        let rest = &s[idx + 3..];
+        if rest.is_empty() {
+            return Err("地址缺少主机/端口".to_string());
+        }
+        return Ok(format!("{scheme}://{rest}"));
+    }
+    if let Some(colon) = s.rfind(':') {
+        let host = &s[..colon];
+        let port = &s[colon + 1..];
+        if host.is_empty() || port.parse::<u16>().is_err() {
+            return Err("端口无效".to_string());
+        }
+        return Ok(format!("tcp://{host}:{port}"));
+    }
+    Err("地址缺少端口（示例: 1.2.3.4:22020）".to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -221,6 +252,39 @@ mod tests {
         let mut reloaded = read_config_from(&dir);
         assert_eq!(get_or_create_machine_id(&mut reloaded), a);
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn normalize_address_accepts_schemes_and_lowercases() {
+        let cases = [
+            ("tcp://H:80", "tcp://H:80"),
+            ("UDP://10.0.0.1:22020", "udp://10.0.0.1:22020"),
+            ("ws://h:443/admin", "ws://h:443/admin"),
+            ("WSS://h:8443/x", "wss://h:8443/x"),
+        ];
+        for (raw, expected) in cases {
+            assert_eq!(normalize_address(raw).unwrap(), expected, "case {raw}");
+        }
+    }
+
+    #[test]
+    fn normalize_address_defaults_missing_scheme_to_tcp() {
+        assert_eq!(
+            normalize_address("10.0.0.6:22020").unwrap(),
+            "tcp://10.0.0.6:22020"
+        );
+        assert_eq!(
+            normalize_address("example.com:8080").unwrap(),
+            "tcp://example.com:8080"
+        );
+    }
+
+    #[test]
+    fn normalize_address_rejects_bad_input() {
+        assert!(normalize_address("").is_err());
+        assert!(normalize_address("http://h:80").is_err(), "http 不支持");
+        assert!(normalize_address("10.0.0.1").is_err(), "缺端口报错");
+        assert!(normalize_address("h:notaport").is_err(), "端口无效");
     }
 
     #[test]

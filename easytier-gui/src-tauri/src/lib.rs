@@ -126,6 +126,12 @@ fn anf_get_machine_id() -> Result<String, String> {
     Ok(id)
 }
 
+/// ANF 首屏：把服务器地址（ip/ip:port/tcp/udp/ws/wss）归一化为配置源 URL。
+#[tauri::command]
+fn anf_normalize_address(address: String) -> Result<String, String> {
+    anf_config::normalize_address(&address)
+}
+
 #[tauri::command]
 fn set_dock_visibility(app: tauri::AppHandle, visible: bool) -> Result<(), String> {
     #[cfg(target_os = "macos")]
@@ -1440,6 +1446,7 @@ pub fn run_gui() -> std::process::ExitCode {
             anf_load_config,
             anf_save_config,
             anf_get_machine_id,
+            anf_normalize_address,
             set_dock_visibility,
             list_network_instance_ids,
             remove_network_instance,
