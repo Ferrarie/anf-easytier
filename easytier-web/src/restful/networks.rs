@@ -4,7 +4,7 @@ use axum::{
     Json,
     extract::Path,
     http::StatusCode,
-    routing::{delete, post},
+    routing::{delete, get, post},
     Router,
 };
 use chrono::{DateTime, FixedOffset};
