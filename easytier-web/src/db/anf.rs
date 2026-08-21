@@ -1,6 +1,6 @@
 //! ANFAGENT-30 中心化授权核心数据逻辑：邀请码 / 设备审批 / 管理员绑定。
 //!
-//! 设计规格见 docs/anfagent-30-m1.md。TDD 用例见本文件底部 `tests` 模块。
+//! 设计规格见 docs/anfagent-30/01-m1-design.md。TDD 用例见本文件底部 `tests` 模块。
 
 use chrono::{DateTime, FixedOffset};
 use sea_orm::{

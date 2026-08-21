@@ -1,6 +1,6 @@
 //! ANFAGENT-30 M2：网络实例 / tag / ACL 规则 CRUD 与 ACL v1 编译（默认拒绝）。
 //!
-//! 设计规格见 docs/anfagent-30-m2.md。TDD 用例见本文件底部 `tests` 模块。
+//! 设计规格见 docs/anfagent-30/02-m2-design.md。TDD 用例见本文件底部 `tests` 模块。
 
 use std::collections::BTreeSet;
 
