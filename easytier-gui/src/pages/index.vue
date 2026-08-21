@@ -16,6 +16,7 @@ import { useToast, useConfirm } from 'primevue'
 import { loadMode, saveMode, WebClientConfig, type Mode } from '~/composables/mode'
 import { saveLastNetworkInstanceId, loadLastNetworkInstanceId } from '~/composables/config'
 import ModeSwitcher from '~/components/ModeSwitcher.vue'
+import AnfFirstScreen from '~/components/AnfFirstScreen.vue'
 import { getEasytierVersion, getServiceStatus, isAdmin } from '~/composables/backend'
 
 const { t, locale } = useI18n()
@@ -27,6 +28,7 @@ const editingMode = ref<Mode>({ mode: 'normal' })
 const isModeSaving = ref(false)
 const manualDisconnect = ref(false)
 const notAdmin = ref(false)
+const showAnfAdvanced = ref(false)
 
 onMounted(async () => {
   try {
@@ -489,14 +491,22 @@ const configServerConnectionStatus = computed(() => {
 
     <Menu ref="log_menu" :model="log_menu_items_popup" :popup="true" />
 
-    <RemoteManagement v-if="clientRunning" class="flex-1 overflow-y-auto" :api="remoteClient"
-      :pause-auto-refresh="isModeSaving" v-model:instance-id="instanceId" />
-    <div v-else class="empty-state flex-1 flex flex-col items-center py-12">
-      <i class="pi pi-server text-5xl text-secondary mb-4 opacity-50"></i>
-      <div class="text-xl text-center font-medium mb-3">{{ t('client.not_running') }}
+    <AnfFirstScreen v-if="!showAnfAdvanced" class="flex-1 overflow-y-auto" />
+    <template v-else>
+      <RemoteManagement v-if="clientRunning" class="flex-1 overflow-y-auto" :api="remoteClient"
+        :pause-auto-refresh="isModeSaving" v-model:instance-id="instanceId" />
+      <div v-else class="empty-state flex-1 flex flex-col items-center py-12">
+        <i class="pi pi-server text-5xl text-secondary mb-4 opacity-50"></i>
+        <div class="text-xl text-center font-medium mb-3">{{ t('client.not_running') }}
+        </div>
+        <Button @click="reconnectClient" :loading="isModeSaving" :label="t('client.retry')" icon="pi pi-replay"
+          iconPos="left" />
       </div>
-      <Button @click="reconnectClient" :loading="isModeSaving" :label="t('client.retry')" icon="pi pi-replay"
-        iconPos="left" />
+    </template>
+
+    <div class="flex justify-end px-4 pb-2">
+      <Button :label="showAnfAdvanced ? '返回快速连接' : '编辑网络（高级）'" icon="pi pi-cog" text size="small"
+        @click="showAnfAdvanced = !showAnfAdvanced" />
     </div>
 
     <Menubar :model="setting_menu_items" breakpoint="795px">
