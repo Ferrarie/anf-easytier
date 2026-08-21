@@ -29,6 +29,7 @@ mod db;
 mod migrator;
 mod restful;
 mod webhook;
+mod anf;
 
 #[cfg(feature = "embed")]
 mod web;
