@@ -140,6 +140,9 @@ impl Db {
                 networking_method: Some(NetworkingMethod::Manual as i32),
                 peer_urls: template.center_peer_url.iter().cloned().collect(),
                 hostname: Some(device.display_name.clone()),
+                // 多网卡/走 mesh 场景下让客户端按系统路由表选源接口，
+                // 避免 easytier 默认 bind_device=true 绑到“外部”网卡导致连不上中心
+                bind_device: Some(false),
                 acl: Some(Acl {
                     acl_v1: Some(acl),
                 }),
@@ -344,6 +347,24 @@ mod tests {
             assert!(parsed.virtual_ipv4.is_some(), "应分配虚拟 IP");
             assert_eq!(parsed.network_length, Some(24));
         }
+    }
+
+    #[tokio::test]
+    async fn managed_config_uses_os_routing_bind_device_false() {
+        let db = Db::memory_db().await;
+        let admin = admin_user(&db).await;
+        let net = db.create_network("办公网", None).await.unwrap();
+        let machine_id = uuid::Uuid::new_v4();
+        register_approved_device(&db, admin, machine_id, &["办公"], &[&net.id]).await;
+
+        let (configs, _) = db
+            .generate_device_managed_configs(&machine_id, &template())
+            .await
+            .unwrap();
+        let cfg: NetworkConfig = serde_json::from_value(configs[0].network_config.clone()).unwrap();
+        // 多网卡/走 mesh 环境：应让客户端按系统路由表选择源接口，
+        // 而不是 easytier 默认绑“外部”网卡（实测会绑到 WLAN 导致连不上中心）。
+        assert_eq!(cfg.bind_device, Some(false));
     }
 
     #[tokio::test]
