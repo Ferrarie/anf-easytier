@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod elevate;
+mod anf_config;
 
 use anyhow::Context;
 #[cfg(target_os = "android")]
@@ -98,6 +99,31 @@ fn is_admin() -> bool {
     {
         true
     }
+}
+
+/// ANF 首屏：读取本地配置（非机密，exe 同目录 config.json）。
+#[tauri::command]
+fn anf_load_config() -> Result<String, String> {
+    let (cfg, _path) = anf_config::load_config();
+    serde_json::to_string(&cfg).map_err(|e| e.to_string())
+}
+
+/// ANF 首屏：保存本地配置（非机密），返回实际写入路径。
+#[tauri::command]
+fn anf_save_config(cfg_json: String) -> Result<String, String> {
+    let cfg: anf_config::AppConfig =
+        serde_json::from_str(&cfg_json).map_err(|e| e.to_string())?;
+    let path = anf_config::save_config(&cfg)?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+/// ANF 首屏：取或生成稳定机器 ID（UUID v4），并持久化。
+#[tauri::command]
+fn anf_get_machine_id() -> Result<String, String> {
+    let (mut cfg, _path) = anf_config::load_config();
+    let id = anf_config::get_or_create_machine_id(&mut cfg);
+    let _ = anf_config::save_config(&cfg);
+    Ok(id)
 }
 
 #[tauri::command]
@@ -1411,6 +1437,9 @@ pub fn run_gui() -> std::process::ExitCode {
             set_tun_fd,
             easytier_version,
             is_admin,
+            anf_load_config,
+            anf_save_config,
+            anf_get_machine_id,
             set_dock_visibility,
             list_network_instance_ids,
             remove_network_instance,

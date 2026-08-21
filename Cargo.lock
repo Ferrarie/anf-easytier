@@ -163,6 +163,7 @@ dependencies = [
  "tauri-plugin-vpnservice",
  "thunk-rs",
  "tokio",
+ "toml 0.8.19",
  "url",
  "uuid",
  "winapi",
