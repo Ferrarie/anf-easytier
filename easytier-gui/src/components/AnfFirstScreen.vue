@@ -3,9 +3,8 @@ import { onMounted, computed, ref } from 'vue'
 import { useAnfFirstScreen } from '~/composables/anf_first_screen'
 
 const {
-  inviteCode,
   serverAddress,
-  networkName,
+  nickname,
   status,
   machineId,
   errorMsg,
@@ -69,14 +68,21 @@ async function onToggleRun() {
     <Message v-if="errorMsg" severity="warn" :closable="true">{{ errorMsg }}</Message>
 
     <div class="flex flex-col gap-1">
-      <label class="text-sm font-medium">邀请码</label>
-      <InputText v-model="inviteCode" placeholder="粘贴你的邀请码" />
-    </div>
-
-    <div class="flex flex-col gap-1">
       <label class="text-sm font-medium">服务器地址</label>
       <InputText v-model="serverAddress" placeholder="例如 10.0.0.6:22020" />
       <small class="text-secondary">填一个可访问的公网/局域网 IP + 端口（支持 tcp/udp/ws）</small>
+    </div>
+
+    <div class="flex flex-col gap-1">
+      <label class="text-sm font-medium">设备昵称（自定义，可随时改）</label>
+      <InputText v-model="nickname" placeholder="例如：我办公室的电脑" />
+      <small class="text-secondary">会展示给同一网络内的其它成员</small>
+    </div>
+
+    <div class="flex flex-col gap-1">
+      <label class="text-sm font-medium">机器码</label>
+      <InputText :model-value="machineId" readonly class="opacity-80" />
+      <small class="text-secondary">设备唯一标识，不可修改；管理员以此审核放行</small>
     </div>
 
     <Button :label="runLabel" :icon="runIcon" size="large" class="w-full"
@@ -92,7 +98,8 @@ async function onToggleRun() {
       <div v-if="advancedOpen" class="mt-3 flex flex-col gap-3">
         <div class="flex flex-col gap-1">
           <label class="text-sm font-medium">网络名称</label>
-          <InputText v-model="networkName" placeholder="网络名（默认由中心下发）" />
+          <InputText model-value="anf-m3" readonly placeholder="由中心下发" />
+          <small class="text-secondary">网络名由中心统一管理，客户端不可改（改了连不上中心）</small>
         </div>
         <div class="flex flex-col gap-1 text-sm text-secondary">
           <div>TUN 网卡名：anf_et（固定）</div>

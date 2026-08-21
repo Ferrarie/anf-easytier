@@ -498,6 +498,17 @@ impl SessionRpcService {
             }
         };
 
+        // ANF 托管模式：未知机器首次心跳时自动登记为该用户下的 pending 设备，
+        // 并把心跳上报的 hostname 作为昵称（display_name）写入，供管理员在设备列表识别放行。
+        // ensure_device_registered 幂等：已存在设备不重复创建，仅按需更新昵称。
+        storage
+            .db()
+            .ensure_device_registered(machine_id, Some(req.hostname.as_str()))
+            .await
+            .with_context(|| {
+                format!("Failed to register device for machine-id: {machine_id}")
+            })?;
+
         let authorized = storage
             .db()
             .device_is_authorized(machine_id)

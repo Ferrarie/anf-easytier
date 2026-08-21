@@ -538,9 +538,68 @@ impl Db {
     pub async fn device_is_authorized(&self, machine_id: Uuid) -> Result<bool, DbErr> {
         let d = self.get_device_by_machine_id(machine_id).await?;
         Ok(match d {
-            None => true,
+            // ANF 托管模式：未登记设备默认不授权（未知机器不予放行），
+            // 需在设备列表中登记为 pending 并由管理员放行后才放行。
+            None => false,
             Some(d) => d.status == DEVICE_STATUS_APPROVED,
         })
+    }
+
+    /// 首次心跳登记未知设备为 pending（无需邀请码）。已存在则只更新昵称（display_name），
+    /// 返回设备记录。这是"无邀请码 + 机器码审核放行"模式的登记入口。
+    pub async fn ensure_device_registered(
+        &self,
+        machine_id: Uuid,
+        display_name: Option<&str>,
+    ) -> Result<entity::devices::Model, AnfError> {
+        use entity::devices;
+
+        let machine = machine_id.to_string();
+        let existing = devices::Entity::find()
+            .filter(devices::Column::MachineId.eq(&machine))
+            .one(self.orm_db())
+            .await
+            .map_err(AnfError::Db)?;
+
+        if let Some(d) = existing {
+            // 仅当调用方提供了非空昵称且与当前不同时才更新显示名。
+            if let Some(name) = display_name {
+                if !name.is_empty() && name != d.display_name {
+                    let mut m = d.into_active_model();
+                    m.display_name = Set(name.to_string());
+                    m.updated_at = Set(now());
+                    devices::Entity::update(m).exec(self.orm_db()).await
+                        .map_err(AnfError::Db)?;
+                    return self.get_device_by_machine_id(machine_id).await
+                        .map_err(AnfError::Db)?
+                        .ok_or(AnfError::DeviceNotFound);
+                }
+            }
+            return Ok(d);
+        }
+
+        let m = devices::ActiveModel {
+            machine_id: Set(machine.clone()),
+            display_name: Set(
+                display_name
+                    .filter(|n| !n.is_empty())
+                    .map(str::to_string)
+                    .unwrap_or_else(|| default_display_name(machine_id)),
+            ),
+            status: Set(DEVICE_STATUS_PENDING.to_string()),
+            approved_by: Set(None),
+            approved_at: Set(None),
+            created_at: Set(now()),
+            updated_at: Set(now()),
+            ..Default::default()
+        };
+        let res = devices::Entity::insert(m).exec(self.orm_db()).await
+            .map_err(AnfError::Db)?;
+        devices::Entity::find_by_id(res.last_insert_id)
+            .one(self.orm_db())
+            .await
+            .map_err(AnfError::Db)?
+            .ok_or(AnfError::DeviceNotFound)
     }
 
     async fn ensure_user_in_superusers_txn(
@@ -730,9 +789,51 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn unknown_device_stays_legacy_authorized() {
+    async fn unknown_device_is_denied_by_default() {
+        // ANF 托管模式：未登记机器默认不放行（需管理员登记放行）。
         let db = Db::memory_db().await;
-        assert!(db.device_is_authorized(machine()).await.unwrap());
+        assert!(!db.device_is_authorized(machine()).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn ensure_device_registered_creates_pending_and_default_name() {
+        let db = Db::memory_db().await;
+        let m = machine();
+        let d = db.ensure_device_registered(m, None).await.unwrap();
+        assert_eq!(d.status, DEVICE_STATUS_PENDING);
+        assert_eq!(d.display_name, default_display_name(m));
+        assert_eq!(d.approved_by, None);
+        // 未授权（pending）
+        assert!(!db.device_is_authorized(m).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn ensure_device_registered_updates_display_name_and_is_idempotent() {
+        let db = Db::memory_db().await;
+        let m = machine();
+        let d1 = db.ensure_device_registered(m, Some("小白-办公室")).await.unwrap();
+        assert_eq!(d1.display_name, "小白-办公室");
+        assert_eq!(d1.status, DEVICE_STATUS_PENDING);
+
+        // 再登记同机器：状态不变，昵称更新
+        let d2 = db.ensure_device_registered(m, Some("小白-新名")).await.unwrap();
+        assert_eq!(d2.id, d1.id);
+        assert_eq!(d2.display_name, "小白-新名");
+        assert_eq!(d2.status, DEVICE_STATUS_PENDING);
+    }
+
+    #[tokio::test]
+    async fn approved_device_registered_again_stays_approved() {
+        let db = Db::memory_db().await;
+        let admin = admin_user(&db).await;
+        let m = machine();
+        let d = db.ensure_device_registered(m, Some("已放行")).await.unwrap();
+        db.set_device_status(d.id, DeviceStatus::Approved, admin).await.unwrap();
+        // 再次登记不应降级
+        let d2 = db.ensure_device_registered(m, Some("改昵称")).await.unwrap();
+        assert_eq!(d2.status, DEVICE_STATUS_APPROVED);
+        assert_eq!(d2.display_name, "改昵称");
+        assert!(db.device_is_authorized(m).await.unwrap());
     }
 
     #[tokio::test]

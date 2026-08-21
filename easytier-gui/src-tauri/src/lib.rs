@@ -548,7 +548,12 @@ async fn is_client_running() -> Result<bool, String> {
 }
 
 #[tauri::command]
-async fn init_web_client(app: AppHandle, url: Option<String>) -> Result<(), String> {
+async fn init_web_client(
+    app: AppHandle,
+    url: Option<String>,
+    machine_id: Option<String>,
+    hostname: Option<String>,
+) -> Result<(), String> {
     let mut web_client_guard = WEB_CLIENT.write().await;
     let Some(url) = url else {
         *web_client_guard = None;
@@ -570,10 +575,12 @@ async fn init_web_client(app: AppHandle, url: Option<String>) -> Result<(), Stri
     let web_client = web_client::run_web_client(
         url.as_str(),
         easytier::common::MachineIdOptions {
-            explicit_machine_id: None,
+            // ANF 首屏：用 config.toml 里的稳定机器 ID，保证与后台登记的 machine_id 一致。
+            explicit_machine_id: machine_id,
             state_dir: Some(machine_id_state_dir),
         },
-        None,
+        // 昵称（display_name）作为 hostname，会上报并广播给其它成员。
+        hostname,
         false,
         instance_manager,
         Some(hooks),

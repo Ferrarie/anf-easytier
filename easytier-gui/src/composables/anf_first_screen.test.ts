@@ -5,6 +5,9 @@ const mocks = vi.hoisted(() => ({
   anfSaveConfig: vi.fn(),
   anfGetMachineId: vi.fn(),
   anfNormalizeAddress: vi.fn(),
+  initWebClient: vi.fn(),
+  isWebClientConnected: vi.fn(),
+  listNetworkInstanceIds: vi.fn(),
 }))
 
 vi.mock('./backend', () => mocks)
@@ -16,6 +19,9 @@ describe('useAnfFirstScreen', () => {
     vi.clearAllMocks()
     mocks.anfGetMachineId.mockResolvedValue('m-1')
     mocks.anfNormalizeAddress.mockResolvedValue('tcp://10.0.0.1:22020')
+    mocks.initWebClient.mockResolvedValue(undefined)
+    mocks.isWebClientConnected.mockResolvedValue(false)
+    mocks.listNetworkInstanceIds.mockResolvedValue({ running_inst_ids: [], disabled_inst_ids: [] })
   })
 
   it('init 载入配置并补齐机器 ID', async () => {
@@ -23,14 +29,13 @@ describe('useAnfFirstScreen', () => {
       schema_version: 1,
       machine_id: 'm-existing',
       server_address: '10.0.0.1:22020',
-      network_name: 'anf-m3',
-      invite_code: 'INV-1',
-      invite_status: 'pending',
+      nickname: '小白-办公',
     }))
     const s = useAnfFirstScreen()
     await s.init()
     expect(s.serverAddress.value).toBe('10.0.0.1:22020')
     expect(s.machineId.value).toBe('m-existing')
+    expect(s.nickname.value).toBe('小白-办公')
     expect(mocks.anfGetMachineId).not.toHaveBeenCalled()
   })
 
@@ -61,21 +66,73 @@ describe('useAnfFirstScreen', () => {
   it('persist 保存非机密配置', async () => {
     mocks.anfSaveConfig.mockResolvedValue('C:/app/config.toml')
     const s = useAnfFirstScreen()
-    s.inviteCode.value = 'INV-9'
     s.serverAddress.value = '1.2.3.4:22020'
-    s.networkName.value = 'anf-m3'
+    s.nickname.value = '办公室'
     const path = await s.persist()
     expect(path).toBe('C:/app/config.toml')
     const saved = mocks.anfSaveConfig.mock.calls[0][0] as Record<string, unknown>
     expect(saved.server_address).toBe('1.2.3.4:22020')
+    expect(saved.nickname).toBe('办公室')
     // 配置结构不含网络密钥字段
     expect(JSON.stringify(saved)).not.toMatch(/secret|password|network_key/i)
   })
 
-  it('start 状态机走到 pending（占位）', async () => {
+  it('start 发起 WebClient 连接并用机器ID+昵称', async () => {
     const s = useAnfFirstScreen()
     s.serverAddress.value = '1.2.3.4:22020'
+    s.machineId.value = 'm-1'
+    s.nickname.value = '办公室'
+    mocks.isWebClientConnected.mockResolvedValue(true)
+    mocks.listNetworkInstanceIds.mockResolvedValue({ running_inst_ids: ['i1'], disabled_inst_ids: [] })
     await s.start()
-    expect(s.status.value).toBe('pending')
+    expect(mocks.anfNormalizeAddress).toHaveBeenCalledWith('1.2.3.4:22020')
+    expect(mocks.initWebClient).toHaveBeenCalledWith('tcp://10.0.0.1:22020', 'm-1', '办公室')
+  })
+
+  it('start 走 pending，等已连接且有实例后转 connected', async () => {
+    const s = useAnfFirstScreen()
+    s.serverAddress.value = '1.2.3.4:22020'
+    s.machineId.value = 'm-1'
+    mocks.isWebClientConnected.mockResolvedValue(true)
+    mocks.listNetworkInstanceIds.mockResolvedValue({ running_inst_ids: ['i1'], disabled_inst_ids: [] })
+    await s.start()
+    expect(s.status.value).toBe('connected')
+    s.cleanup()
+  })
+
+  it('start 无地址给出人话错误并回 idle', async () => {
+    const s = useAnfFirstScreen()
+    s.serverAddress.value = ''
+    mocks.anfNormalizeAddress.mockResolvedValue(undefined)
+    await s.start()
+    // normalizeAddress 内部会 set 错误消息，这里直接断言 status 回到 idle
+    expect(s.status.value).toBe('idle')
+  })
+
+  it('stop 断开 WebClient 并回到 idle', async () => {
+    const s = useAnfFirstScreen()
+    await s.stop()
+    expect(mocks.initWebClient).toHaveBeenCalledWith(undefined, undefined, undefined)
+    expect(s.status.value).toBe('idle')
+  })
+
+  it('start 连接失败标记 failed 并给出原因', async () => {
+    const s = useAnfFirstScreen()
+    s.serverAddress.value = '1.2.3.4:22020'
+    s.machineId.value = 'm-1'
+    mocks.initWebClient.mockRejectedValue(new Error('连不上'))
+    await s.start()
+    expect(s.status.value).toBe('failed')
+    expect(s.errorMsg.value).toBe('连不上')
+  })
+
+  it('stop 后再 start 仍能重新连接', async () => {
+    const s = useAnfFirstScreen()
+    s.serverAddress.value = '1.2.3.4:22020'
+    s.machineId.value = 'm-1'
+    await s.stop()
+    await s.start()
+    expect(mocks.initWebClient).toHaveBeenCalledWith('tcp://10.0.0.1:22020', 'm-1', undefined)
+    s.cleanup()
   })
 })
