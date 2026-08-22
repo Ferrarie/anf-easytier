@@ -118,11 +118,11 @@ onUnmounted(() => {
                         <Button ref="toggleButtonRef" type="button" aria-haspopup="true" icon="pi pi-list"
                             variant="text" size="large" severity="contrast" @click="toggleSidebar" />
                     </div>
-                    <a href="https://easytier.top" class="flex ms-2 md:me-24">
-                        <img :src="Icon" class="h-9 me-3" alt="FlowBite Logo" />
+                    <div class="flex ms-2 md:me-24 items-center">
+                        <img :src="Icon" class="h-9 me-3" alt="ANF EasyTier Logo" />
                         <span
-                            class="self-center text-xl font-semibold sm:text-2xl whitespace-nowrap dark:text-white">EasyTier</span>
-                    </a>
+                            class="self-center text-xl font-semibold sm:text-2xl whitespace-nowrap dark:text-white">ANF EasyTier</span>
+                    </div>
                 </div>
                 <div class="flex items-center">
                     <div class="language-switch">
