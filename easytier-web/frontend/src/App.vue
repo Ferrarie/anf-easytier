@@ -4,7 +4,9 @@ import { onMounted } from 'vue';
 import { Toast, DynamicDialog } from 'primevue';
 
 onMounted(async () => {
-  await I18nUtils.loadLanguageAsync(localStorage.getItem('lang') || 'cn')
+  // ANF 后台默认中文；避免被历史 localStorage(lang=en) 覆盖。
+  localStorage.setItem('lang', 'cn')
+  await I18nUtils.loadLanguageAsync('cn')
 });
 
 </script>

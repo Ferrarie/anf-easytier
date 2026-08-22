@@ -180,7 +180,9 @@ pub fn normalize_address(raw: &str) -> Result<String, String> {
         if host.is_empty() || port.parse::<u16>().is_err() {
             return Err("端口无效".to_string());
         }
-        return Ok(format!("tcp://{host}:{port}"));
+        // config-server 是 UDP 且走 /admin 托管通道；小白只填 ip:port 时默认补全，
+        // 否则 easytier-core 会因 token 为空而拒绝连接。
+        return Ok(format!("udp://{host}:{port}/admin"));
     }
     Err("地址缺少端口（示例: 1.2.3.4:22020）".to_string())
 }
@@ -268,14 +270,14 @@ mod tests {
     }
 
     #[test]
-    fn normalize_address_defaults_missing_scheme_to_tcp() {
+    fn normalize_address_defaults_missing_scheme_to_config_server() {
         assert_eq!(
             normalize_address("10.0.0.6:22020").unwrap(),
-            "tcp://10.0.0.6:22020"
+            "udp://10.0.0.6:22020/admin"
         );
         assert_eq!(
             normalize_address("example.com:8080").unwrap(),
-            "tcp://example.com:8080"
+            "udp://example.com:8080/admin"
         );
     }
 

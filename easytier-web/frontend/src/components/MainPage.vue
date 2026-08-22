@@ -173,13 +173,6 @@ onUnmounted(() => {
                 </li>
                 <li>
                     <Button variant="text" class="w-full justify-start gap-x-3 pl-1.5 sidebar-button"
-                        severity="contrast" @click="router.push({ name: 'inviteManagement' })">
-                        <i class="pi pi-ticket text-xl"></i>
-                        <span class="mb-0.5">邀请码管理</span>
-                    </Button>
-                </li>
-                <li>
-                    <Button variant="text" class="w-full justify-start gap-x-3 pl-1.5 sidebar-button"
                         severity="contrast" @click="router.push({ name: 'networkManagement' })">
                         <i class="pi pi-sitemap text-xl"></i>
                         <span class="mb-0.5">网络管理</span>
