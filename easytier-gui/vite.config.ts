@@ -30,6 +30,8 @@ function findIp(gateway: string) {
 }
 
 const host = process.env.TAURI_DEV_HOST
+// vitest 运行时由 unplugin-* 自动生成的 d.ts 在沙箱写入不稳定，测试时禁用其文件生成。
+const isVitest = process.env.VITEST === 'true'
 
 // https://vitejs.dev/config/
 export default defineConfig(async () => ({
@@ -68,7 +70,7 @@ export default defineConfig(async () => ({
           'vue-router/auto': ['useLink'],
         },
       ],
-      dts: 'src/auto-imports.d.ts',
+      dts: isVitest ? false : 'src/auto-imports.d.ts',
       dirs: [
         'src/composables',
         'src/stores',
@@ -82,7 +84,7 @@ export default defineConfig(async () => ({
       extensions: ['vue', 'md'],
       // allow auto import and register components used in markdown
       include: [/\.vue$/, /\.vue\?vue/, /\.md$/],
-      dts: 'src/components.d.ts',
+      dts: isVitest ? false : 'src/components.d.ts',
       resolvers: [
         PrimeVueResolver(),
       ],
@@ -97,7 +99,8 @@ export default defineConfig(async () => ({
     }),
 
     // https://github.com/webfansplz/vite-plugin-vue-devtools
-    VueDevTools(),
+    // vitest 下 devtools 会尝试连接 dev server 而挂起，测试时跳过。
+    ...(isVitest ? [] : [VueDevTools()]),
   ],
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
