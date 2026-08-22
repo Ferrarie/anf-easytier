@@ -14,7 +14,7 @@ ANFAGENT-30 M3 Windows 控制面端到端冒烟（免安装客户端版）
   powershell -ExecutionPolicy Bypass -File scripts/anf-m3-e2e-win.ps1
 
 依赖：
-  - target/release/easytier-core.exe（本仓库 cargo build --release -p easytier 产物）
+  - target/release/anf-easytier-core.exe（本仓库 cargo build --release -p easytier 产物）
   - curl.exe（Windows 自带）
 #>
 
@@ -22,7 +22,7 @@ param(
     [string]$WebBase = 'http://10.0.0.6:11211',
     [string]$ConfigServer = 'udp://10.0.0.6:22020/admin',
     [string]$BindIp = '10.0.0.3',
-    [string]$CoreBin = 'D:\Project\anf-easytier\target\release\easytier-core.exe',
+    [string]$CoreBin = 'D:\Project\anf-easytier\target\release\anf-easytier-core.exe',
     [string]$NetworkName = 'anf-m3',
     [switch]$Elevate
 )

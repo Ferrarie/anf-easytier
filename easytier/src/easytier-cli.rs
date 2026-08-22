@@ -80,7 +80,7 @@ use easytier::{
 rust_i18n::i18n!("locales", fallback = "en");
 
 #[derive(Parser, Debug)]
-#[command(name = "easytier-cli", author, version = EASYTIER_VERSION, about, long_about = None)]
+#[command(name = "anf-easytier-cli", author, version = EASYTIER_VERSION, about, long_about = None)]
 struct Cli {
     #[arg(
         short = 'p',
@@ -3048,7 +3048,7 @@ async fn main() -> Result<(), Error> {
                             .unwrap()
                             .parent()
                             .unwrap()
-                            .join("easytier-core");
+                            .join("anf-easytier-core");
 
                         if cfg!(target_os = "windows") {
                             ret.set_extension("exe");
@@ -3267,10 +3267,10 @@ async fn main() -> Result<(), Error> {
         SubCommand::GenAutocomplete { shell } => {
             let mut cmd = Cli::command();
             if let Some(shell) = shell.to_shell() {
-                easytier::print_completions(shell, &mut cmd, "easytier-cli");
+                easytier::print_completions(shell, &mut cmd, "anf-easytier-cli");
             } else {
                 // Handle Nushell
-                easytier::print_nushell_completions(&mut cmd, "easytier-cli");
+                easytier::print_nushell_completions(&mut cmd, "anf-easytier-cli");
             }
         }
     }

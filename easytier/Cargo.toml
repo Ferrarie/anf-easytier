@@ -16,13 +16,13 @@ build = "build/main.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [[bin]]
-name = "easytier-core"
+name = "anf-easytier-core"
 path = "src/easytier-core.rs"
 test = false
 required-features = ["management"]
 
 [[bin]]
-name = "easytier-cli"
+name = "anf-easytier-cli"
 path = "src/easytier-cli.rs"
 required-features = ["management"]
 

@@ -31,13 +31,13 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: 构建 linux x86_64 二进制
         run: |
-          cargo build --release -p easytier-core -p easytier-web
+          cargo build --release -p easytier -p easytier-web
       - name: 上传产物
         uses: actions/upload-artifact@v4
         with:
           name: anf-easytier-linux-x86_64
           path: |
-            target/release/easytier-core
+            target/release/anf-easytier-core
             target/release/easytier-web
 
   # docker 镜像推送需要 runner 具备 docker 能力（待 VM/runner 就绪后确认）

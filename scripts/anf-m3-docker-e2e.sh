@@ -5,7 +5,7 @@ set -uo pipefail
 
 WEB="${WEB:-http://10.0.0.6:11211}"
 CONFIG_SERVER="${CONFIG_SERVER:-udp://10.0.0.6:22020/admin}"
-CORE_BIN="${CORE_BIN:-/home/anf-et/anf-easytier/target/release/easytier-core}"
+CORE_BIN="${CORE_BIN:-/home/anf-et/anf-easytier/target/release/anf-easytier-core}"
 TMP="$(mktemp -d)"
 CJ="$TMP/cookies.txt"
 

@@ -99,7 +99,7 @@ export async function setTrayTooltip(tooltip: string) {
     const tray = await useTray()
     if (!tray)
       return
-    tray.setTooltip(`EasyTier\n${pkg.version}\n${tooltip}`)
-    tray.setTitle(`EasyTier\n${pkg.version}\n${tooltip}`)
+    tray.setTooltip(`ANF EasyTier\n${pkg.version}\n${tooltip}`)
+    tray.setTitle(`ANF EasyTier\n${pkg.version}\n${tooltip}`)
   }
 }

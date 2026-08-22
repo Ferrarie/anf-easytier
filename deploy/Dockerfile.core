@@ -5,7 +5,7 @@ FROM ubuntu:24.04
 RUN apt-get update && apt-get install -y --no-install-recommends tzdata ca-certificates && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY bin/easytier-core /usr/local/bin/easytier-core
+COPY bin/anf-easytier-core /usr/local/bin/anf-easytier-core
 
 ENV TZ=Asia/Shanghai
 
@@ -13,4 +13,4 @@ ENV TZ=Asia/Shanghai
 EXPOSE 11010/tcp
 EXPOSE 11010/udp
 
-ENTRYPOINT ["/usr/local/bin/easytier-core"]
+ENTRYPOINT ["/usr/local/bin/anf-easytier-core"]

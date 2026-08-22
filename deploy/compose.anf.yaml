@@ -27,7 +27,7 @@ services:
       - ${ANF_CENTER_PEER_URL:-tcp://10.0.0.6:11110}
 
   # 中心 core（中继/兜底），测试阶段用 11110 避开官方 core 的 11010
-  easytier-core:
+  anf-easytier-core:
     build:
       context: .
       dockerfile: Dockerfile.core

@@ -83,7 +83,7 @@ fn dump_profile(_cur_allocated: usize) {
 }
 
 #[derive(Parser, Debug)]
-#[command(name = "easytier-core", author, version = EASYTIER_VERSION , about, long_about = None)]
+#[command(name = "anf-easytier-core", author, version = EASYTIER_VERSION , about, long_about = None)]
 struct Cli {
     #[arg(
         short = 'w',
@@ -1632,10 +1632,10 @@ pub async fn main() -> ExitCode {
     if let Some(shell) = cli.gen_autocomplete {
         let mut cmd = Cli::command();
         if let Some(shell) = shell.to_shell() {
-            crate::print_completions(shell, &mut cmd, "easytier-core");
+            crate::print_completions(shell, &mut cmd, "anf-easytier-core");
         } else {
             // Handle Nushell
-            crate::print_nushell_completions(&mut cmd, "easytier-core");
+            crate::print_nushell_completions(&mut cmd, "anf-easytier-core");
         }
         return ExitCode::SUCCESS;
     }
