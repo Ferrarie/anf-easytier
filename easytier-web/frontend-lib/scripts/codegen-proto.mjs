@@ -72,6 +72,14 @@ function withNodeBinPath() {
 
 function getProtocCommand() {
   const extensions = process.platform === 'win32' ? ['.exe'] : ['']
+  // 优先使用外部提供的 protoc（PROTOC 环境变量），避免联网下载最新版本。
+  const explicitProtoc = process.env.PROTOC
+  if (explicitProtoc && existsSync(explicitProtoc)) {
+    return {
+      command: explicitProtoc,
+      argsPrefix: ['--proto_path', protobufTsPluginRoot],
+    }
+  }
   const systemProtoc = findExecutableInPath('protoc', extensions)
 
   if (systemProtoc) {

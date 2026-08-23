@@ -58,6 +58,13 @@ deploy/bin/
 # ANF Windows 客户端发布产物
 dist/
 
+# 本地 VM 工具（venv/同步 tarball，非交付物）
+.vm_tools/
+
+# pnpm 本地依赖缓存 / TS 增量构建产物（非交付物）
+.pnpm-store/
+*.tsbuildinfo
+
 .direnv
 .flake-profile
 

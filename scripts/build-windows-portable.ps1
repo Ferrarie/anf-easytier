@@ -1,12 +1,13 @@
 ﻿<#
-ANF EasyTier Windows 免安装客户端打包脚本
+ANF 平台架构 Windows 免安装客户端打包脚本
 
 用法（PowerShell）：
     powershell -ExecutionPolicy Bypass -File scripts/build-windows-portable.ps1
 
-产物：
-    dist/anf-easytier-win-x64-<版本>.zip
-    （内含 anf-easytier.exe + wintun.dll + Packet.dll + WinDivert64.sys + 使用说明）
+产物（命名约定：AnfET_<版本>_<平台>_<cpu架构>，示例 anf_2.6.4_windows_x64.zip）：
+    dist/anf_<版本>_windows_x64.zip
+    （Windows 专用后缀 windows_x64；macOS 构建请用 mac_arm64 或 mac_x64，
+      按 CPU 架构区分。内含 anf-easytier.exe + wintun.dll + Packet.dll + WinDivert64.sys + 使用说明）
 
 前置依赖：
     - Visual Studio（脚本自动定位 vcvars64.bat）
@@ -17,7 +18,8 @@ ANF EasyTier Windows 免安装客户端打包脚本
 
 运行依赖（发给测试者时提示）：
     - Windows 10/11（WebView2 运行时自带）
-    - 建 TUN 需要 Npcap：winget install Npcap.Npcap（装驱动，可能需重启）
+    - 建 TUN 虚拟网卡需"以管理员身份运行"（随包 wintun.dll 驱动）；Npcap 仅在用子网代理/KCP
+      代理/UDP 广播捕获时才需安装（winget install Npcap.Npcap，可能需重启）
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -34,11 +36,13 @@ if (-not $ProductName -or -not $Version) {
     throw "无法从 tauri.conf.json 读取 productName/version"
 }
 
-$ArtifactName = "anf-easytier-win-x64-$Version"
+# 平台后缀约定：Windows x64 -> windows_x64；macOS x64/arm64 -> mac_x64 / mac_arm64。
+$PlatformSuffix = 'windows_x64'
+$ArtifactName = "anf_${Version}_$PlatformSuffix"
 $DistDir = Join-Path $RepoRoot 'dist'
 $StageDir = Join-Path $DistDir $ArtifactName
 
-Write-Host "==> ANF EasyTier Windows 免安装打包（$Version）" -ForegroundColor Cyan
+Write-Host "==> ANF 平台架构 Windows 免安装打包（$Version）" -ForegroundColor Cyan
 
 # ---------- 1. 前置检查 ----------
 function Find-Command([string]$Name) {
@@ -148,16 +152,19 @@ Copy-Item -LiteralPath $Exe -Destination $StageDir
 foreach ($dll in $DllSources) { Copy-Item -LiteralPath $dll -Destination $StageDir }
 
 $readme = @"
-ANF EasyTier 客户端（免安装版） v$Version
+ANF 平台架构 客户端（免安装版） v$Version
 ==========================================
 
 1. 解压后双击 anf-easytier.exe 即可运行（无需安装）。
-2. 首次建 TUN 网卡前请安装 Npcap（管理员运行）：
+2. 建 TUN 虚拟网卡请"以管理员身份运行"（使用随包 wintun.dll 驱动，无需 Npcap）；
+   仅当使用"子网代理 / KCP 代理 / UDP 广播捕获"等功能时才需安装 Npcap：
       winget install Npcap.Npcap
-   装驱动后如无网卡出现，请重启电脑。
+   若首次运行后无网卡出现，请重启电脑。
 3. 本版本为 ANF 中心化组网客户端，不兼容 easytier 2.4.5 旧客户端/旧节点，
    入网需中心平台（easytier-web）审批放行。
-4. 文件清单：
+4. 网络名称与网络密钥由中心平台统一管理，客户端只需填写"服务器地址 + 设备昵称"，
+   无需填网络名/网络密码；密钥由中心实时下发且客户端不保存。
+5. 文件清单：
       anf-easytier.exe  客户端主程序
       wintun.dll        TUN 驱动（虚拟网卡）
       Packet.dll        数据包捕获（Npcap 兼容层）
@@ -179,7 +186,7 @@ Write-Host "    发布目录 : $StageDir"
 Write-Host "    zip      : $ZipPath"
 Get-ChildItem $StageDir | Select-Object Name, Length | Format-Table -AutoSize
 
-# Npcap 提醒
+# Npcap 提醒（仅代理/抓包需要，非建 TUN 前提）
 if (-not (Get-Service | Where-Object { $_.Name -like '*npcap*' })) {
-    Write-Host '    提醒：本机未检测到 Npcap，建 TUN 前需安装（winget install Npcap.Npcap）' -ForegroundColor Yellow
+    Write-Host '    提醒：未检测到 Npcap（仅影响子网代理/KCP 代理/抓包功能；建 TUN 不需要它）' -ForegroundColor Yellow
 }
