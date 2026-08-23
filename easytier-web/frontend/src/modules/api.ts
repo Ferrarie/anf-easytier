@@ -205,6 +205,11 @@ export class ApiClient {
         return this.client.patch(`/devices/${id}`, payload);
     }
 
+    /** 删除设备（tailscale 授权页的“移除机器”语义）。 */
+    public async deleteDevice(id: number): Promise<any> {
+        return this.client.delete(`/devices/${id}`);
+    }
+
     // ===== ANFAGENT-30 M1：邀请码管理（管理员） =====
 
     public async listInvites(): Promise<Array<any>> {
