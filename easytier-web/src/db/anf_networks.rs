@@ -165,18 +165,27 @@ impl Db {
     }
 
     pub async fn delete_network(&self, id: &str) -> Result<(), AnfNetError> {
-        use entity::{device_networks, network_instances};
+        use entity::{device_networks, devices, network_instances};
 
         if self.get_network(id).await?.is_none() {
             return Err(AnfNetError::NetworkNotFound);
         }
-        let in_use = device_networks::Entity::find()
+        // 仅"已放行"设备计入占用（与前端"成员数"统计口径一致）；
+        // pending/rejected 设备的网络分配不算占用，避免"成员数为0却删不掉"。
+        let approved_in_use = device_networks::Entity::find()
+            .inner_join(devices::Entity)
             .filter(device_networks::Column::NetworkInstId.eq(id))
+            .filter(devices::Column::Status.eq(DEVICE_STATUS_APPROVED))
             .count(self.orm_db())
             .await?;
-        if in_use > 0 {
+        if approved_in_use > 0 {
             return Err(AnfNetError::NetworkInUse);
         }
+        // 清理该网络下所有（含 pending/rejected）设备引用，避免孤立行残留。
+        device_networks::Entity::delete_many()
+            .filter(device_networks::Column::NetworkInstId.eq(id))
+            .exec(self.orm_db())
+            .await?;
         network_instances::Entity::delete_by_id(id.to_string())
             .exec(self.orm_db())
             .await?;
@@ -482,6 +491,27 @@ mod tests {
         let free = db.create_network("空网", None).await.unwrap();
         db.delete_network(&free.id).await.unwrap();
         assert!(db.get_network(&free.id).await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn network_with_only_pending_assignment_is_deletable_and_cleans_reference() {
+        let db = Db::memory_db().await;
+        let admin = admin_user(&db).await;
+
+        let net = db.create_network("pending网", None).await.unwrap();
+        // 用邀请码注册一个 pending 设备，并只给它分配该网络（尚未放行）。
+        let invite = db.generate_invite(admin, 5, None).await.unwrap();
+        let device = db.register_device(&invite.code, uuid::Uuid::new_v4()).await.unwrap();
+        db.update_device(device.id, None, Some(vec!["办公".to_string()]), Some(vec![net.id.clone()]))
+            .await
+            .unwrap();
+
+        // 成员数（仅 approved）为 0，删除不应被 pending 分配阻塞。
+        assert_eq!(db.list_network_devices(&net.id).await.unwrap().len(), 0);
+        db.delete_network(&net.id).await.unwrap();
+        assert!(db.get_network(&net.id).await.unwrap().is_none());
+        // 设备对该网络的引用也应被清理，避免孤立行。
+        assert!(db.list_device_networks(device.id).await.unwrap().is_empty());
     }
 
     #[tokio::test]

@@ -228,10 +228,32 @@ impl Db {
     ) -> Result<Vec<entity::devices::Model>, DbErr> {
         use entity::devices;
         let mut q = devices::Entity::find();
-        if let Some(s) = status {
-            q = q.filter(devices::Column::Status.eq(s.as_str()));
+        match status {
+            Some(s) => {
+                q = q.filter(devices::Column::Status.eq(s.as_str()));
+            }
+            None => {
+                // 默认列表全量显示所有设备（含已拒绝/已踢出），便于管理员审计与二次处理。
+                // 参考 Tailscale 授权页样式，能看到全部设备；同一机器码重新注册会回到 pending。
+            }
         }
         q.order_by_asc(devices::Column::Id).all(self.orm_db()).await
+    }
+
+    /// 删除设备记录（彻底移除不复用），返回受影响行数。
+    pub async fn delete_device(&self, id: i32) -> Result<bool, DbErr> {
+        use entity::{device_networks, device_tags, devices};
+        let res = device_tags::Entity::delete_many()
+            .filter(device_tags::Column::DeviceId.eq(id))
+            .exec(self.orm_db())
+            .await?;
+        let _ = res;
+        device_networks::Entity::delete_many()
+            .filter(device_networks::Column::DeviceId.eq(id))
+            .exec(self.orm_db())
+            .await?;
+        let res = devices::Entity::delete_by_id(id).exec(self.orm_db()).await?;
+        Ok(res.rows_affected > 0)
     }
 
     /// 设备状态机：pending → approved / rejected / kicked；approved → rejected / kicked；
@@ -769,6 +791,68 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(err, AnfError::InvalidTransition(..)));
+    }
+
+    #[tokio::test]
+    async fn default_list_shows_all_devices_and_reegister_revives() {
+        let db = Db::memory_db().await;
+        let admin = admin_user(&db).await;
+        let invite = db.generate_invite(admin, 5, None).await.unwrap();
+        let m = machine();
+        let d = db.register_device(&invite.code, m).await.unwrap();
+        assert_eq!(d.status, DEVICE_STATUS_PENDING);
+
+        // 拒绝后默认列表仍显示（全量可见，参考 Tailscale 授权页），便于审计与二次处理。
+        db.set_device_status(d.id, DeviceStatus::Rejected, admin)
+            .await
+            .unwrap();
+        let all = db.list_devices(None).await.unwrap();
+        assert!(
+            all.iter().any(|x| x.id == d.id),
+            "默认设备列表应显示全部设备（含已拒绝）"
+        );
+
+        // 显式按 rejected 过滤仍可审计。
+        let rejected = db.list_devices(Some(DeviceStatus::Rejected)).await.unwrap();
+        assert!(
+            rejected.iter().any(|x| x.id == d.id),
+            "显式查询 rejected 应能看到该设备"
+        );
+
+        // 同一机器码重新申请 -> 回到 pending 并再次显示。
+        let invite2 = db.generate_invite(admin, 5, None).await.unwrap();
+        let d2 = db.register_device(&invite2.code, m).await.unwrap();
+        assert_eq!(d2.id, d.id, "同机码重注册应复用同一设备记录");
+        assert_eq!(d2.status, DEVICE_STATUS_PENDING);
+        let all_after = db.list_devices(None).await.unwrap();
+        assert!(
+            all_after.iter().any(|x| x.id == d.id),
+            "同机码重注册后应再次显示该设备"
+        );
+    }
+
+    #[tokio::test]
+    async fn delete_device_removes_record_and_associations() {
+        let db = Db::memory_db().await;
+        let admin = admin_user(&db).await;
+        let invite = db.generate_invite(admin, 5, None).await.unwrap();
+        let m = machine();
+        let d = db.register_device(&invite.code, m).await.unwrap();
+        db.update_device(
+            d.id,
+            None,
+            Some(vec!["办公".to_string()]),
+            Some(vec!["net-a".to_string()]),
+        )
+        .await
+        .unwrap();
+
+        assert!(db.delete_device(d.id).await.unwrap());
+        assert!(db.get_device(d.id).await.unwrap().is_none());
+        assert!(db.list_device_tags(d.id).await.unwrap().is_empty());
+        assert!(db.list_device_networks(d.id).await.unwrap().is_empty());
+        // 删除不存在的记录返回 false，不报错
+        assert!(!db.delete_device(99999).await.unwrap());
     }
 
     #[tokio::test]

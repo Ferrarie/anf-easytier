@@ -3,7 +3,7 @@
 use axum::{
     Json,
     extract::{Path, Query, State},
-    routing::{get, post},
+    routing::{delete, get, post},
     Router,
 };
 use axum_login::AuthUser;
@@ -105,7 +105,7 @@ pub fn admin_router() -> Router<AppStateInner> {
         .route("/api/v1/devices/:id/kick", post(kick))
         .route(
             "/api/v1/devices/:id",
-            axum::routing::patch(update),
+            delete(remove).patch(update),
         )
 }
 
@@ -299,4 +299,48 @@ async fn update(
         })?;
     }
     Ok(Json(DeviceJson::from_model(&db, device).await?))
+}
+
+/// 删除设备（tailscale 授权页的“移除机器”语义）。已放行设备先撤销托管配置并断开会话。
+async fn remove(
+    _admin: AdminSession,
+    axum::Extension(db): axum::Extension<Db>,
+    State(client_mgr): State<AppStateInner>,
+    axum::Extension(feature_flags): axum::Extension<Arc<FeatureFlags>>,
+    Path(id): Path<i32>,
+) -> Result<Json<serde_json::Value>, HttpHandleError> {
+    let device = db
+        .get_device(id)
+        .await
+        .map_err(convert_db_error)?
+        .ok_or_else(|| {
+            (
+                axum::http::StatusCode::NOT_FOUND,
+                Json::from(other_error("设备不存在".to_string())),
+            )
+        })?;
+    let status = DeviceStatus::from_str(&device.status).unwrap_or(DeviceStatus::Pending);
+    if status == DeviceStatus::Approved {
+        let machine_id = device.machine_id.parse::<Uuid>().map_err(|e| {
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                Json::from(other_error(format!("设备机器码非法: {e}"))),
+            )
+        })?;
+        revoke_device_configs(
+            &client_mgr,
+            &db,
+            &feature_flags.anf_center_user,
+            machine_id,
+        )
+        .await
+        .map_err(|e| {
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                Json::from(other_error(format!("撤销配置失败: {e}"))),
+            )
+        })?;
+    }
+    let removed = db.delete_device(id).await.map_err(convert_db_error)?;
+    Ok(Json(serde_json::json!({ "removed": removed })))
 }
