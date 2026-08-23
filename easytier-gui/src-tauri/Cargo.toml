@@ -1,7 +1,7 @@
 [package]
 name = "anf-easytier"
-version = "2.6.4-anf.1"
-description = "ANF EasyTier 客户端（中心化组网）"
+version = "2.6.4"
+description = "ANF 平台架构 客户端（中心化组网）"
 authors = ["you"]
 edition.workspace = true
 
@@ -44,7 +44,8 @@ tauri-plugin-positioner = { version = "2.3.0", features = ["tray-icon"] }
 tauri-plugin-vpnservice = { path = "../../tauri-plugin-vpnservice" }
 tauri-plugin-os = "2.3.0"
 
-uuid = "1.17.0"
+uuid = { version = "1.17.0", features = ["v5"] }
+machine-uid = "0.5.3"
 async-trait = "0.1.89"
 
 url = { version = "2.5", features = ["serde"] }

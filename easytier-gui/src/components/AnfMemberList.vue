@@ -27,6 +27,14 @@ function costLabel(cost: string): string {
   return cost === 'p2p' ? '直连' : cost === 'Local' ? '本地' : '中转'
 }
 
+// 中心/服务器类节点友好化（参照 easytier-game member.vue）：PublicServer -> 服务器
+function friendlyHostname(hostname: string): string {
+  if ((hostname || '').toLowerCase().includes('publicserver')) {
+    return (hostname || '').replace('PublicServer', '服务器')
+  }
+  return hostname || '-'
+}
+
 onMounted(() => {
   if (props.instanceId) start(props.instanceId)
 })
@@ -47,7 +55,7 @@ onBeforeUnmount(stop)
       </template>
       <Column field="hostname" header="成员名" sortable>
         <template #body="{ data }">
-          <div class="font-medium">{{ data.hostname || '-' }}</div>
+          <div class="font-medium">{{ friendlyHostname(data.hostname) }}</div>
           <div v-if="data.connections_addrs?.length" class="text-xs text-secondary break-all">
             {{ data.connections_addrs[0] }}
           </div>

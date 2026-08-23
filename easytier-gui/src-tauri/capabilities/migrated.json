@@ -4,7 +4,8 @@
   "description": "permissions that were migrated from v1",
   "local": true,
   "windows": [
-    "main"
+    "main",
+    "member"
   ],
   "permissions": [
     "core:path:default",
@@ -15,6 +16,8 @@
     "core:window:allow-hide",
     "core:window:allow-set-focus",
     "core:window:allow-set-title",
+    "core:webview:allow-create-webview-window",
+    "core:webview:default",
     "core:app:default",
     "core:resources:default",
     "core:menu:default",

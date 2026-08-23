@@ -1,5 +1,3 @@
-import { type } from '@tauri-apps/plugin-os';
-
 export interface WebClientConfig {
     config_server_url?: string
 }
@@ -12,36 +10,32 @@ export interface NormalMode extends WebClientConfig {
     rpc_listen_port?: number
 }
 
-export interface ServiceMode extends WebClientConfig {
-    mode: 'service'
-    config_dir: string
-    rpc_portal: string
-    file_log_level: 'off' | 'warn' | 'info' | 'debug' | 'trace'
-    file_log_dir: string
-    installed_core_version?: string
-}
-
-export interface RemoteMode {
-    mode: 'remote'
-    remote_rpc_address: string
-}
-
 export function saveMode(mode: Mode) {
     localStorage.setItem('app_mode', JSON.stringify(mode))
 }
 
 
 export function loadMode(): Mode {
-    const modeStr = localStorage.getItem('app_mode')
-    if (modeStr) {
-        let mode = JSON.parse(modeStr) as Mode
-        if (type() === 'android') {
-            return { ...mode, mode: 'normal' }
+    // ANFAGENT-30：仅保留客户端（normal）模式，忽略历史保存的 service/remote 模式。
+    try {
+        const modeStr = localStorage.getItem('app_mode')
+        if (modeStr) {
+            const parsed = JSON.parse(modeStr) as Partial<NormalMode>
+            if (parsed && parsed.mode === 'normal') {
+                const { config_server_url, rpc_portal, enable_rpc_port_listen, rpc_listen_port } = parsed
+                return {
+                    mode: 'normal',
+                    config_server_url,
+                    rpc_portal,
+                    enable_rpc_port_listen,
+                    rpc_listen_port,
+                }
+            }
         }
-        return mode
-    } else {
-        return { mode: 'normal' }
+    } catch {
+        // 损坏的本地值直接走默认
     }
+    return { mode: 'normal' }
 }
 
-export type Mode = NormalMode | ServiceMode | RemoteMode
+export type Mode = NormalMode

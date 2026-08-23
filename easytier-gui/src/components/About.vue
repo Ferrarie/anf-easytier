@@ -13,7 +13,7 @@ onMounted(async () => {
 <template>
   <Card>
     <template #title>
-      ANF EasyTier - {{ t('about.version') }}: {{ etVersion }}
+      ANF 平台架构 - {{ t('about.version') }}: {{ etVersion }}
     </template>
     <template #content>
       <p class="mb-1">

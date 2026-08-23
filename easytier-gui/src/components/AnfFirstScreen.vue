@@ -2,7 +2,7 @@
 import { onMounted, computed, ref } from 'vue'
 import { type } from '@tauri-apps/plugin-os'
 import { useAnfFirstScreen } from '~/composables/anf_first_screen'
-import AnfMemberList from '~/components/AnfMemberList.vue'
+import { canOpenMemberWindow, toggleMemberWindow } from '~/composables/room_window'
 
 const {
   profiles,
@@ -24,7 +24,6 @@ const {
 } = useAnfFirstScreen()
 
 const advancedOpen = ref(false)
-const membersOpen = ref(false)
 // Windows 且当前进程未以管理员身份运行时，首页展示提示（仅非管理员时显示）。
 const notAdmin = ref(false)
 const { t } = useI18n()
@@ -182,11 +181,10 @@ async function onToggleRun() {
     </div>
 
     <div class="border-t pt-3">
-      <Button text size="small" icon="pi pi-users" label="成员列表" class="p-0"
-        @click="membersOpen = !membersOpen" />
-      <div v-if="membersOpen" class="mt-3">
-        <AnfMemberList :instance-id="lastInstanceId" />
-      </div>
+      <Button text size="small" icon="pi pi-users" label="房间信息" class="p-0"
+        :disabled="!canOpenMemberWindow(status, lastInstanceId)"
+        @click="toggleMemberWindow(status, lastInstanceId)" />
+      <small class="ml-2 text-secondary">打开成员列表独立窗口</small>
     </div>
   </div>
 </template>

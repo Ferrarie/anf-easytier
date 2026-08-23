@@ -2,7 +2,7 @@ import Aura from '@primeuix/themes/aura';
 import PrimeVue from 'primevue/config';
 
 import EasyTierFrontendLib, { I18nUtils } from 'easytier-frontend-lib';
-import { createRouter, createWebHistory } from 'vue-router/auto';
+import { createRouter, createWebHashHistory } from 'vue-router/auto';
 import { routes } from 'vue-router/auto-routes';
 import App from '~/App.vue';
 
@@ -33,7 +33,7 @@ async function main() {
   const app = createApp(App)
 
   const router = createRouter({
-    history: createWebHistory(),
+    history: createWebHashHistory(),
     routes,
   })
 

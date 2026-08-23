@@ -10,6 +10,11 @@ declare global {
   const MenuItemExit: typeof import('./composables/tray')['MenuItemExit']
   const MenuItemShow: typeof import('./composables/tray')['MenuItemShow']
   const acceptHMRUpdate: typeof import('pinia')['acceptHMRUpdate']
+  const anfGetMachineId: typeof import('./composables/backend')['anfGetMachineId']
+  const anfLoadConfig: typeof import('./composables/backend')['anfLoadConfig']
+  const anfNormalizeAddress: typeof import('./composables/backend')['anfNormalizeAddress']
+  const anfSaveConfig: typeof import('./composables/backend')['anfSaveConfig']
+  const canOpenMemberWindow: typeof import('./composables/room_window')['canOpenMemberWindow']
   const collectNetworkInfo: typeof import('./composables/backend')['collectNetworkInfo']
   const computed: typeof import('vue')['computed']
   const createApp: typeof import('vue')['createApp']
@@ -52,8 +57,10 @@ declare global {
   const mapStores: typeof import('pinia')['mapStores']
   const mapWritableState: typeof import('pinia')['mapWritableState']
   const markRaw: typeof import('vue')['markRaw']
+  const networkCidr: typeof import('./composables/ip_cidr')['networkCidr']
   const nextTick: typeof import('vue')['nextTick']
   const normalizeConfigSource: typeof import('./composables/config_source')['normalizeConfigSource']
+  const normalizeMembers: typeof import('./composables/members')['normalizeMembers']
   const onActivated: typeof import('vue')['onActivated']
   const onBeforeMount: typeof import('vue')['onBeforeMount']
   const onBeforeRouteLeave: typeof import('vue-router')['onBeforeRouteLeave']
@@ -79,6 +86,7 @@ declare global {
   const readonly: typeof import('vue')['readonly']
   const ref: typeof import('vue')['ref']
   const resolveComponent: typeof import('vue')['resolveComponent']
+  const resolveMemberWindowAction: typeof import('./composables/room_window')['resolveMemberWindowAction']
   const runNetworkInstance: typeof import('./composables/backend')['runNetworkInstance']
   const saveLastNetworkInstanceId: typeof import('./composables/config')['saveLastNetworkInstanceId']
   const saveMode: typeof import('./composables/mode')['saveMode']
@@ -101,15 +109,18 @@ declare global {
   const toRef: typeof import('vue')['toRef']
   const toRefs: typeof import('vue')['toRefs']
   const toValue: typeof import('vue')['toValue']
+  const toggleMemberWindow: typeof import('./composables/room_window')['toggleMemberWindow']
   const triggerRef: typeof import('vue')['triggerRef']
   const unref: typeof import('vue')['unref']
   const updateNetworkConfigState: typeof import('./composables/backend')['updateNetworkConfigState']
+  const useAnfFirstScreen: typeof import('./composables/anf_first_screen')['useAnfFirstScreen']
   const useAttrs: typeof import('vue')['useAttrs']
   const useCssModule: typeof import('vue')['useCssModule']
   const useCssVars: typeof import('vue')['useCssVars']
   const useI18n: typeof import('vue-i18n')['useI18n']
   const useId: typeof import('vue')['useId']
   const useLink: typeof import('vue-router/auto')['useLink']
+  const useMembers: typeof import('./composables/members')['useMembers']
   const useModel: typeof import('vue')['useModel']
   const useRoute: typeof import('vue-router')['useRoute']
   const useRouter: typeof import('vue-router')['useRouter']
@@ -138,6 +149,11 @@ declare module 'vue' {
     readonly MenuItemExit: UnwrapRef<typeof import('./composables/tray')['MenuItemExit']>
     readonly MenuItemShow: UnwrapRef<typeof import('./composables/tray')['MenuItemShow']>
     readonly acceptHMRUpdate: UnwrapRef<typeof import('pinia')['acceptHMRUpdate']>
+    readonly anfGetMachineId: UnwrapRef<typeof import('./composables/backend')['anfGetMachineId']>
+    readonly anfLoadConfig: UnwrapRef<typeof import('./composables/backend')['anfLoadConfig']>
+    readonly anfNormalizeAddress: UnwrapRef<typeof import('./composables/backend')['anfNormalizeAddress']>
+    readonly anfSaveConfig: UnwrapRef<typeof import('./composables/backend')['anfSaveConfig']>
+    readonly canOpenMemberWindow: UnwrapRef<typeof import('./composables/room_window')['canOpenMemberWindow']>
     readonly collectNetworkInfo: UnwrapRef<typeof import('./composables/backend')['collectNetworkInfo']>
     readonly computed: UnwrapRef<typeof import('vue')['computed']>
     readonly createApp: UnwrapRef<typeof import('vue')['createApp']>
@@ -180,8 +196,10 @@ declare module 'vue' {
     readonly mapStores: UnwrapRef<typeof import('pinia')['mapStores']>
     readonly mapWritableState: UnwrapRef<typeof import('pinia')['mapWritableState']>
     readonly markRaw: UnwrapRef<typeof import('vue')['markRaw']>
+    readonly networkCidr: UnwrapRef<typeof import('./composables/ip_cidr')['networkCidr']>
     readonly nextTick: UnwrapRef<typeof import('vue')['nextTick']>
     readonly normalizeConfigSource: UnwrapRef<typeof import('./composables/config_source')['normalizeConfigSource']>
+    readonly normalizeMembers: UnwrapRef<typeof import('./composables/members')['normalizeMembers']>
     readonly onActivated: UnwrapRef<typeof import('vue')['onActivated']>
     readonly onBeforeMount: UnwrapRef<typeof import('vue')['onBeforeMount']>
     readonly onBeforeRouteLeave: UnwrapRef<typeof import('vue-router')['onBeforeRouteLeave']>
@@ -207,6 +225,7 @@ declare module 'vue' {
     readonly readonly: UnwrapRef<typeof import('vue')['readonly']>
     readonly ref: UnwrapRef<typeof import('vue')['ref']>
     readonly resolveComponent: UnwrapRef<typeof import('vue')['resolveComponent']>
+    readonly resolveMemberWindowAction: UnwrapRef<typeof import('./composables/room_window')['resolveMemberWindowAction']>
     readonly runNetworkInstance: UnwrapRef<typeof import('./composables/backend')['runNetworkInstance']>
     readonly saveLastNetworkInstanceId: UnwrapRef<typeof import('./composables/config')['saveLastNetworkInstanceId']>
     readonly saveMode: UnwrapRef<typeof import('./composables/mode')['saveMode']>
@@ -229,15 +248,18 @@ declare module 'vue' {
     readonly toRef: UnwrapRef<typeof import('vue')['toRef']>
     readonly toRefs: UnwrapRef<typeof import('vue')['toRefs']>
     readonly toValue: UnwrapRef<typeof import('vue')['toValue']>
+    readonly toggleMemberWindow: UnwrapRef<typeof import('./composables/room_window')['toggleMemberWindow']>
     readonly triggerRef: UnwrapRef<typeof import('vue')['triggerRef']>
     readonly unref: UnwrapRef<typeof import('vue')['unref']>
     readonly updateNetworkConfigState: UnwrapRef<typeof import('./composables/backend')['updateNetworkConfigState']>
+    readonly useAnfFirstScreen: UnwrapRef<typeof import('./composables/anf_first_screen')['useAnfFirstScreen']>
     readonly useAttrs: UnwrapRef<typeof import('vue')['useAttrs']>
     readonly useCssModule: UnwrapRef<typeof import('vue')['useCssModule']>
     readonly useCssVars: UnwrapRef<typeof import('vue')['useCssVars']>
     readonly useI18n: UnwrapRef<typeof import('vue-i18n')['useI18n']>
     readonly useId: UnwrapRef<typeof import('vue')['useId']>
     readonly useLink: UnwrapRef<typeof import('vue-router/auto')['useLink']>
+    readonly useMembers: UnwrapRef<typeof import('./composables/members')['useMembers']>
     readonly useModel: UnwrapRef<typeof import('vue')['useModel']>
     readonly useRoute: UnwrapRef<typeof import('vue-router')['useRoute']>
     readonly useRouter: UnwrapRef<typeof import('vue-router')['useRouter']>
