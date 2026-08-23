@@ -1,326 +1,155 @@
-# EasyTier
+# ANF 平台架构（ANF EasyTier）
 
-[![Github release](https://img.shields.io/github/v/tag/EasyTier/EasyTier)](https://github.com/EasyTier/EasyTier/releases)
-[![GitHub](https://img.shields.io/github/license/EasyTier/EasyTier)](https://github.com/EasyTier/EasyTier/blob/main/LICENSE)
-[![GitHub last commit](https://img.shields.io/github/last-commit/EasyTier/EasyTier)](https://github.com/EasyTier/EasyTier/commits/main)
-[![GitHub issues](https://img.shields.io/github/issues/EasyTier/EasyTier)](https://github.com/EasyTier/EasyTier/issues)
-[![GitHub Core Actions](https://github.com/EasyTier/EasyTier/actions/workflows/core.yml/badge.svg)](https://github.com/EasyTier/EasyTier/actions/workflows/core.yml)
-[![GitHub GUI Actions](https://github.com/EasyTier/EasyTier/actions/workflows/gui.yml/badge.svg)](https://github.com/EasyTier/EasyTier/actions/workflows/gui.yml)
-[![GitHub Test Actions](https://github.com/EasyTier/EasyTier/actions/workflows/test.yml/badge.svg)](https://github.com/EasyTier/EasyTier/actions/workflows/test.yml)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/EasyTier/EasyTier)
+> ANFAGENT-30 是基于 [EasyTier](https://github.com/EasyTier/EasyTier) 的中心化组网改造：
+> 由中心 `easytier-web` 承担设备授权 / 审批 / 网络与 ACL 管理，设备以稳定 `machine_id` 为授权单元，
+> 凭邀请码注册，管理员放行后才入网。网络实例硬隔离 + tag / ACL 图形化、默认拒绝。
 
-[简体中文](/README_CN.md) | [English](/README.md)
+[简体中文](/README.md) | [English](/README_CN.md)
 
-> ✨ A simple, secure, decentralized virtual private network solution powered by Rust and Tokio
+> 本文档为 ANF 平台架构的主文档（以中文为主，专业术语用英文辅助）。上游 EasyTier 简介见文末「与上游的关系」。
 
-<p align="center">
-<img src="assets/config-page.png" width="300" alt="config page">
-<img src="assets/running-page.png" width="300" alt="running page">
-</p>
+## 1. 一句话说明
 
-📚 **[Full Documentation](https://easytier.cn/en/)** | 🖥️ **[Web Console](https://easytier.cn/web)** | 📝 **[Download Releases](https://github.com/EasyTier/EasyTier/releases)** | 🧩 **[Third Party Tools](https://easytier.cn/en/guide/installation_gui.html#third-party-graphical-interfaces)** | ❤️ **[Sponsor](#sponsor)**
+把 EasyTier 从"点对点 / 去中心化组网"改造成**设备需审批的中心化组网**：
 
-## Features
+- **中心**：`easytier-web`（设备授权 / 审批 / 网络与 ACL 管理）+ 中心 `easytier-core`（中继 / 兜底）。
+- **设备**：以机器码（`machine_id`）为唯一授权单元，凭邀请码注册，管理员放行后才下发托管配置入网。
+- **网络**：网络实例（network instance）硬隔离，dev TUN 名为 `anf_et`；tag / ACL 默认拒绝，可图形化配置。
 
-### Core Features
+## 2. 为什么这样设计 / 与去中心化的区别
 
-- 🔒 **Decentralized**: Nodes are equal and independent, no centralized services required  
-- 🚀 **Easy to Use**: Multiple operation methods via web, client, and command line  
-- 🌍 **Cross-Platform**: Supports Win/MacOS/Linux/FreeBSD/Android and X86/ARM/MIPS architectures  
-- 🔐 **Secure**: AES-GCM or WireGuard encryption, prevents man-in-the-middle attacks  
+原生 EasyTier 是**去中心化**的：节点平等，入网只需提供相同的 `--network-name` 与 `--network-secret`。
+这在多人协作 / 企业场景下缺少「谁能进」的管控。ANF 平台架构把「谁能进」交给中心：
 
-### Advanced Capabilities
+| 维度 | 原生 EasyTier | ANF 平台架构 |
+| --- | --- | --- |
+| 授权单元 | 网络名 + 网络密钥 | 稳定机器码（网卡 + CPU 推导） |
+| 入网方式 | 自行填写相同参数 | 邀请码注册 → 管理员审批放行 |
+| 配置来源 | 本机 toml / 命令行 | 中心统一下发托管配置 |
+| 网络安全 | 依赖 network_secret | 网络实例硬隔离 + tag / ACL 默认拒绝 |
+| 权限 | 平等 | 管理员集中管控 |
 
-- 🔌 **Efficient NAT Traversal**: Supports UDP and IPv6 traversal, works with NAT4-NAT4 networks  
-- 🌐 **Subnet Proxy**: Nodes can share subnets for other nodes to access  
-- 🔄 **Intelligent Routing**: Latency priority and automatic route selection for best network experience  
-- ⚡ **High Performance**: Zero-copy throughout the entire link, supports TCP/UDP/WSS/WG protocols  
+## 3. 组件与产物
 
-### Network Optimization
+| 组件 | 说明 | 产物 |
+| --- | --- | --- |
+| `easytier-web` | 中心管理后端（设备审批 / 网络 / ACL / config-server） | `anf-easytier-web` 二进制 + Docker 镜像 |
+| `easytier-core` | 中心 / 客户端核心（中继、TUN、加密） | `anf-easytier-core`、`anf-easytier-cli`、`anf-easytier-game` |
+| `easytier-gui` | Windows 客户端 GUI（ANF 快速连接） | `anf-easytier.exe` + `wintun.dll` 等 |
 
-- 📊 **UDP Loss Resistance**: KCP/QUIC proxy optimizes latency and bandwidth in high packet loss environments  
-- 🔧 **Web Management**: Easy configuration and monitoring through web interface  
-- 🛠️ **Zero Config**: Simple deployment with statically linked executables  
+### 发布物命名规范
 
-## Quick Start
+统一使用：`anf_<版本>_<平台>_<架构>.zip`
 
-### 📥 Installation
-
-Choose the installation method that best suits your needs:
-
-Linux (Recommended):
-```bash
-curl -fsSL "https://github.com/EasyTier/EasyTier/blob/main/script/install.sh?raw=true" | sudo bash -s install
-```
-
-Homebrew (MacOS/Linux):
-```bash
-brew tap brewforge/chinese
-brew install --cask easytier-gui
-```
-
-Windows (Recommended, run with administrator privileges):
-```powershell
-irm "https://github.com/EasyTier/EasyTier/blob/main/script/install.ps1?raw=true" | iex
-```
-
-Install via cargo (Latest development version): 
-```bash
-cargo install --git https://github.com/EasyTier/EasyTier.git easytier
-```
-
-[Install pre-built binary](https://github.com/EasyTier/EasyTier/releases) (Recommended, All platforms supported)
-
-[Install via Docker](https://easytier.cn/en/guide/installation.html#installation-methods)
-
-[Install OpenWrt ipk package](https://github.com/EasyTier/luci-app-easytier)
-
-Additional steps:
-
-[One-Click Register Service](https://easytier.cn/en/guide/network/oneclick-install-as-service.html) (Automatically start when the system boots and run in the background)
-
-### 🚀 Basic Usage
-
-#### Quick Networking with Shared Nodes
-
-EasyTier supports quick networking using shared public nodes. When you don't have a public IP, you can use the free shared nodes provided by the EasyTier community. Nodes will automatically attempt NAT traversal and establish P2P connections. When P2P fails, data will be relayed through shared nodes.
-
-When using shared nodes, each node entering the network needs to provide the same `--network-name` and `--network-secret` parameters as the unique identifier of the network.
-
-Taking two nodes as an example (Please use more complex network name to avoid conflicts):
-
-1. Run on Node A:
-
-```bash
-# Run with administrator privileges
-sudo easytier-core -d --network-name abc --network-secret abc -p tcp://<SharedNodeIP>:11010
-```
-
-2. Run on Node B:
-
-```bash
-# Run with administrator privileges
-sudo easytier-core -d --network-name abc --network-secret abc -p tcp://<SharedNodeIP>:11010
-```
-
-After successful execution, you can check the network status using `easytier-cli`:
+示例：
 
 ```text
-| ipv4         | hostname       | cost  | lat_ms | loss_rate | rx_bytes | tx_bytes | tunnel_proto | nat_type | id         | version         |
-| ------------ | -------------- | ----- | ------ | --------- | -------- | -------- | ------------ | -------- | ---------- | --------------- |
-| 10.200.126.1 | abc-1          | Local | *      | *         | *        | *        | udp          | FullCone | 439804259  | 2.6.2-70e69a38~ |
-| 10.200.126.2 | abc-2          | p2p   | 3.452  | 0         | 17.33 kB | 20.42 kB | udp          | FullCone | 390879727  | 2.6.2-70e69a38~ |
-|              | PublicServer_a | p2p   | 27.796 | 0.000     | 50.01 kB | 67.46 kB | tcp          | Unknown  | 3771642457 | 2.6.2-70e69a38~ |
+anf_2.6.4_windows_x64.zip
+anf_2.6.4_macos_arm64.zip
+anf_2.6.4_linux_x86_64.zip
 ```
 
-You can test connectivity between nodes:
+- 版本号：`2.6.4`（与底层协议 / 核心一致）。
+- 平台：`windows` / `macos` / `linux`。
+- 架构：`x64` / `arm64` / `x86_64`（按平台习惯）。
+
+> 历史旧命名 `anf-easytier-win-x64-2.6.4-anf.1`、`anf_平台架构_2.6.4_windows_x64` 已废弃，统一改为上表规范。
+
+## 4. Windows 客户端 GUI 功能
+
+### 首页「ANF 快速连接」
+
+- **连接配置（自动保存）**：可新建 / 删除 / 切换多套中心服务器地址，切换会先保存当前项；关闭 GUI 后再打开自动回填上次成功的配置。
+- **服务器地址**：填一个可访问的公网 / 局域网 IP + 端口（支持 `tcp` / `udp` / `ws`），例如 `10.0.0.6:22020`。
+- **设备昵称**：自定义，展示给同网络成员。
+- **机器码**：设备唯一标识，不可修改；管理员以此审核放行。机器码由硬件（网卡 + CPU）推导，同机不变。
+- **启动 / 停止**：连接中心 → 等待审批 → 审批放行后建 TUN 入网；按钮状态随审核状态变化（连接中… / 审核中… / 停止 / 重试）。
+- **高级**：内联展开信息（网络名称（只读，中心下发）、TUN 网卡名 `anf_et`、配置源、网络密钥提示）。
+
+### 运行环境
+
+- Windows 平台需**以管理员身份运行**才能创建 TUN 虚拟网卡（当检测到非管理员时会给出提示）。
+- 创建 TUN **不需要 Npcap**（随包含 `wintun.dll`）；Npcap 仅在子网代理 / KCP 代理 / UDP 广播捕获等场景才需要。
+
+### 模式
+
+- ANF 平台架构客户端**仅保留客户端模式（normal）**，未提供服务器 / 远程等其它模式（这些非本产品特性）。
+- 底部下方已移除「切换模式」入口与相关高级配置。
+
+## 5. 中心管理与审批流程
+
+1. 设备在客户端填服务器地址 + 昵称，点「启动」→ 连上中心 config-server，状态为「待审批」。
+2. 管理员打开 `easytier-web` 后台（设备审批页），看到全部设备（含待审批 / 已放行 / 已拒绝 / 已踢出）。
+3. 管理员点「放行」前，系统会**引导先分配 Tag 与网络实例**（缺失则提示去分配）。
+4. 放行后中心为设备生成托管配置（含虚拟 IP、ACL、网络名 / 密钥、中心 peer），通过 config-server 下发。
+5. 客户端收到配置后自动建 TUN（`anf_et`），分配虚拟 IP，连上中心 peer，完成入网。
+6. 管理员可随时「拒绝 / 踢出 / 编辑 / 删除」，网络与 ACL 变更会热更新到已放行设备。
+
+### 关于网络名称 / 网络密钥是否必填
+
+在 ANF 中心化模式中，**网络名称与网络密钥（`network_secret`）都不是客户端必填项**：
+
+- 二者由中心平台统一管理（服务端参数 `ET_ANF_NETWORK_NAME` / `ET_ANF_NETWORK_SECRET`），客户端只需填「服务器地址 + 设备昵称」。
+- 客户端**不持久化网络密钥**：密钥只在运行时内存持有，不出现在本机 `config.toml`，避免明文泄露。
+- 详见 [网络名称/密钥通信层调研](docs/anfagent-30/12-anf-network-name-secret-security-2026-08-23.md)。
+
+## 6. 安全模型
+
+- **机器码授权**：`machine_id` 由网卡 + CPU 硬件推导，作为设备的稳定授权单元。
+- **中心审批**：设备邀请码注册，管理员放行才下发配置。
+- **网络隔离 + ACL 默认拒绝**：多网络实例硬隔离，跨网络默认不通；tag / ACL 规则默认 `drop`，仅显式放行才通。
+- **网络密钥**：用于成员身份证明（HMAC-SHA256），非数据加密密钥；数据链路加密由 easytier AES-GCM / WireGuard 负责。
+- **控制通道加密**：config-server 连接默认升级为 `Noise_NN_25519_ChaChaPoly_SHA256` 安全隧道（AES-GCM），失败时退回 legacy 明文通道（见调研文档第 5 节风险）。
+
+## 7. 开发与构建
+
+### 环境依赖
+
+- Rust（`rust-toolchain.toml`）、Node.js / pnpm（含 `easytier-frontend-lib`）、protoc、LLVM、7-Zip。
+- Windows 需要 VS 开发环境（vcvars64）。
+
+### 构建中心 web
 
 ```bash
-# Test connectivity
-ping 10.200.126.1
-ping 10.200.126.2
+cargo build -p easytier-web
 ```
 
-Note: If you cannot ping through, it may be that the firewall is blocking incoming traffic. Please turn off the firewall or add allow rules.
+### 构建 Windows 客户端免安装包
 
-To improve availability, you can connect to multiple shared nodes simultaneously:
+```powershell
+powershell scripts/build-windows-portable.ps1
+```
+
+产物输出到 `dist/`，命名遵循 `anf_2.6.4_windows_x64.zip`。
+
+> 构建需预先设置（详见 `docs/anfagent-30/06-config-distribution-plan.md`）：
+> `LIBCLANG_PATH`、`PROTOC`、PATH 加 7-Zip；corepack 目录重定向 `COREPACK_HOME`，避免 ACL 只读导致 pnpm install EPERM。
+
+### 测试
 
 ```bash
-# Connect to multiple shared nodes
-sudo easytier-core -d --network-name abc --network-secret abc -p tcp://<SharedNodeIP1>:11010 -p udp://<SharedNodeIP2>:11010
+cargo test -p easytier-web
+cargo test -p easytier-core
+pnpm --filter easytier-gui test
 ```
 
-Once your network is set up successfully, you can easily configure it to start automatically on system boot. Refer to the [One-Click Register Service guide](https://easytier.cn/en/guide/network/oneclick-install-as-service.html) for step-by-step instructions on registering EasyTier as a system service.
+## 8. 与上游 EasyTier 的关系
 
-#### Decentralized Networking
+本项目 fork 自 [EasyTier](https://github.com/EasyTier/EasyTier)，在上游基础上做了 ANFAGENT-30 中心化改造。
+上游的通用能力（去中心化组网、共享节点、子网代理、WireGuard 集成等）在 ANF 平台架构中**不作为默认特性暴露**，
+但底层协议与核心（加密、NAT 穿透、路由等）保持不变。
 
-EasyTier is fundamentally decentralized, with no distinction between server and client. As long as one device can communicate with any node in the virtual network, it can join the virtual network. Here's how to set up a decentralized network:
+如需了解原生 EasyTier 的完整特性与去中心化用法，请见 [README_CN.md](/README_CN.md)（英文辅助）与上游仓库。
 
-1. Start First Node (Node A):
+## 9. 相关文档
 
-```bash
-# Start the first node
-sudo easytier-core -i 10.144.144.1
-```
-
-After startup, this node will listen on the following ports by default:
-- TCP: 11010
-- UDP: 11010
-- WebSocket: 11011
-- WebSocket SSL: 11012
-- WireGuard: 11013
-
-2. Connect Second Node (Node B):
-
-```bash
-# Connect to the first node using its public IP
-sudo easytier-core -i 10.144.144.2 -p udp://FIRST_NODE_PUBLIC_IP:11010
-```
-
-3. Verify Connection:
-
-```bash
-# Test connectivity
-ping 10.144.144.2
-
-# View connected peers
-easytier-cli peer
-
-# View routing information
-easytier-cli route
-
-# View local node information
-easytier-cli node
-```
-
-For more nodes to join the network, they can connect to any existing node in the network using the `-p` parameter:
-
-```bash
-# Connect to any existing node using its public IP
-sudo easytier-core -i 10.144.144.3 -p udp://ANY_EXISTING_NODE_PUBLIC_IP:11010
-```
-
-### 🔍 Advanced Features
-
-#### Subnet Proxy
-
-Assuming the network topology is as follows, Node B wants to share its accessible subnet 10.1.1.0/24 with other nodes:
-
-```mermaid
-flowchart LR
-
-subgraph Node A Public IP 22.1.1.1
-nodea[EasyTier<br/>10.144.144.1]
-end
-
-subgraph Node B
-nodeb[EasyTier<br/>10.144.144.2]
-end
-
-id1[[10.1.1.0/24]]
-
-nodea <--> nodeb <-.-> id1
-```
-
-To share a subnet, add the `-n` parameter when starting EasyTier:
-
-```bash
-# Share subnet 10.1.1.0/24 with other nodes
-sudo easytier-core -i 10.144.144.2 -n 10.1.1.0/24
-```
-
-Subnet proxy information will automatically sync to each node in the virtual network, and each node will automatically configure the corresponding route. You can verify the subnet proxy setup:
-
-1. Check if the routing information has been synchronized (the proxy_cidrs column shows the proxied subnets):
-
-```bash
-# View routing information
-easytier-cli route
-```
-
-![Routing Information](/assets/image-3.png)
-
-2. Test if you can access nodes in the proxied subnet:
-
-```bash
-# Test connectivity to proxied subnet
-ping 10.1.1.2
-```
-
-#### WireGuard Integration
-
-EasyTier can act as a WireGuard server, allowing any device with a WireGuard client (including iOS and Android) to access the EasyTier network. Here's an example setup:
-
-```mermaid
-flowchart LR
-
-ios[[iPhone<br/>WireGuard Installed]]
-
-subgraph Node A Public IP 22.1.1.1
-nodea[EasyTier<br/>10.144.144.1]
-end
-
-subgraph Node B
-nodeb[EasyTier<br/>10.144.144.2]
-end
-
-id1[[10.1.1.0/24]]
-
-ios <-.-> nodea <--> nodeb <-.-> id1
-```
-
-1. Start EasyTier with WireGuard portal enabled:
-
-```bash
-# Listen on 0.0.0.0:11013 and use 10.14.14.0/24 subnet for WireGuard clients
-sudo easytier-core -i 10.144.144.1 --vpn-portal wg://0.0.0.0:11013/10.14.14.0/24
-```
-
-2. Get WireGuard client configuration:
-
-```bash
-# Get WireGuard client configuration
-easytier-cli vpn-portal
-```
-
-3. In the output configuration:
-   - Set `Interface.Address` to an available IP from the WireGuard subnet
-   - Set `Peer.Endpoint` to the public IP/domain of your EasyTier node
-   - Import the modified configuration into your WireGuard client
-
-#### Self-Hosted Public Shared Node
-
-You can run your own public shared node to help other nodes discover each other. A public shared node is just a regular EasyTier network (with same network name and secret) that other networks can connect to.
-
-To run a public shared node:
-
-```bash
-# No need to specify IPv4 address for public shared nodes
-sudo easytier-core --network-name mysharednode --network-secret mysharednode
-```
-
-## Related Projects
-
-- [ZeroTier](https://www.zerotier.com/): A global virtual network for connecting devices.
-- [TailScale](https://tailscale.com/): A VPN solution aimed at simplifying network configuration.
-
-### Contact Us
-
-- 💬 **[Telegram Group](https://t.me/easytier)**
-- 👥 **[QQ Group]**
-  - No.1 [949700262](https://qm.qq.com/q/wFoTUChqZW)
-  - No.2 [837676408](https://qm.qq.com/q/4V33DrfgHe)
-  - No.3 [957189589](https://qm.qq.com/q/YNyTQjwlai)
+| 文档 | 内容 |
+| --- | --- |
+| [docs/anfagent-30/00-plan.md](docs/anfagent-30/00-plan.md) | 方案确认稿：背景、设计决策树、架构、里程碑 |
+| [docs/anfagent-30/05-config-distribution-design.md](docs/anfagent-30/05-config-distribution-design.md) | 配置自动下发设计 |
+| [docs/anfagent-30/11-anf-naming-config-2026-08-22.md](docs/anfagent-30/11-anf-naming-config-2026-08-22.md) | 命名 / 版本 / 配置口径（`2.6.4`、`anf_2.6.4_windows_x64`） |
+| [docs/anfagent-30/12-anf-network-name-secret-security-2026-08-23.md](docs/anfagent-30/12-anf-network-name-secret-security-2026-08-23.md) | 网络名称 / 密钥通信层调研 |
 
 ## License
 
-EasyTier is released under the [LGPL-3.0](https://github.com/EasyTier/EasyTier/blob/main/LICENSE).
-
-## Sponsor
-
-CDN acceleration and security protection for this project are sponsored by Tencent EdgeOne.
-
-<p align="center">
-  <a href="https://edgeone.ai/?from=github" target="_blank">
-    <img src="assets/edgeone.png" width="200" alt="EdgeOne Logo">
-  </a>
-</p>
-
-Special thanks to [Langlang Cloud](https://langlangy.cn/?i26c5a5)  and [RainCloud](https://www.rainyun.com/NjM0NzQ1_) for sponsoring our public servers.
-
-<p align="center">
-<a href="https://langlangy.cn/?i26c5a5" target="_blank">
-<img src="assets/langlang.png" width="200">
-</a>
-<a href="https://langlangy.cn/?i26c5a5" target="_blank">
-<img src="assets/raincloud.png" width="200">
-</a>
-</p>
-
-
-If you find EasyTier helpful, please consider sponsoring us. Software development and maintenance require a lot of time and effort, and your sponsorship will help us better maintain and improve EasyTier.
-
-<p align="center">
-<img src="assets/wechat.png" width="200">
-<img src="assets/alipay.png" width="200">
-</p>
+本项目许可证与上游 EasyTier 一致，沿用 [LGPL-3.0](https://github.com/EasyTier/EasyTier/blob/main/LICENSE)。
