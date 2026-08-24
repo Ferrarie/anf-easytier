@@ -1,4 +1,4 @@
-package com.kkrainbow.easytier
+package com.anidev.anfeasytier
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager

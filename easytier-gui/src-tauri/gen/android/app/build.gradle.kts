@@ -46,10 +46,10 @@ val tauriVersionCode = if (tauriProperties.getProperty("tauri.android.versionNam
 
 android {
     compileSdk = 34
-    namespace = "com.kkrainbow.easytier"
+    namespace = "com.anidev.anfeasytier"
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
-        applicationId = "com.kkrainbow.easytier"
+        applicationId = "com.anidev.anfeasytier"
         minSdk = 24
         targetSdk = 34
         versionCode = tauriVersionCode
