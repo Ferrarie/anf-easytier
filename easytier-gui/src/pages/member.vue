@@ -28,10 +28,18 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="h-full w-full overflow-auto p-2">
-    <div v-if="cidr" class="mb-1 px-1 text-xs text-secondary">
-      网段：{{ cidr }}
+  <div class="h-full w-full overflow-auto p-3">
+    <div class="anf-card overflow-hidden">
+      <div class="flex items-center justify-between border-b px-4 py-3">
+        <div class="flex items-center gap-2">
+          <i class="pi pi-users text-primary" />
+          <span class="text-sm font-semibold">成员列表</span>
+        </div>
+        <Tag v-if="cidr" severity="info" :value="`网段 ${cidr}`" />
+      </div>
+      <div class="p-2">
+        <AnfMemberList :instance-id="instanceId" />
+      </div>
     </div>
-    <AnfMemberList :instance-id="instanceId" />
   </div>
 </template>

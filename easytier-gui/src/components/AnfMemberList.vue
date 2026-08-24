@@ -22,7 +22,7 @@ function costSeverity(cost: string): string {
   if (cost === 'p2p')
     return 'success'
   if (cost === 'Local')
-    return 'primary'
+    return 'info'
   return 'secondary'
 }
 
@@ -53,8 +53,8 @@ onBeforeUnmount(stop)
 </script>
 
 <template>
-  <div class="mt-3">
-    <DataTable :value="rows" striped-rows size="small" :loading="loading" class="w-full text-sm">
+  <div class="p-1">
+    <DataTable :value="rows" striped-rows size="small" row-hover :loading="loading" class="w-full text-sm">
       <template #empty>
         <div class="text-secondary text-center py-3">
           等待成员信息中…
