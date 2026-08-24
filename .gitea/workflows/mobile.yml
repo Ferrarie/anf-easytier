@@ -50,9 +50,11 @@ jobs:
           targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
 
       - name: Setup protoc
-        uses: https://github.com/arduino/setup-protoc@v3
-        with:
-          version: '35.1'
+        # Gitea runner 下载 GitHub release 附件不稳定（TLS 中断），改从 Maven Central 取同一版本（4.35.1 = protobuf v35.1）
+        run: |
+          curl -fsSL -o /usr/local/bin/protoc https://repo1.maven.org/maven2/com/google/protobuf/protoc/4.35.1/protoc-4.35.1-linux-x86_64.exe
+          chmod +x /usr/local/bin/protoc
+          protoc --version
 
       - name: Set Android environment
         run: |
