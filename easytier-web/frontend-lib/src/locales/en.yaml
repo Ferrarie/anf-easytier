@@ -241,6 +241,8 @@ tray:
 about:
   title: About
   version: Version
+  gui_version: GUI version
+  core_version: Core version
   author: Author
   homepage: Homepage
   license: License

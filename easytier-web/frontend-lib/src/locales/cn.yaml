@@ -241,6 +241,8 @@ tray:
 about:
   title: 关于
   version: 版本
+  gui_version: 客户端版本
+  core_version: Core 版本
   author: 作者
   homepage: 主页
   license: 许可证
