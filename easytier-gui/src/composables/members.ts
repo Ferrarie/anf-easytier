@@ -79,7 +79,10 @@ export function useMembers() {
   let timer: ReturnType<typeof setInterval> | null = null
 
   async function fetch(instanceId: string) {
-    loading.value = true
+    // 仅首屏（列表为空）显示 loading；后台刷新静默更新，避免 DataTable 遮罩闪烁。
+    if (rows.value.length === 0) {
+      loading.value = true
+    }
     try {
       const resp = await collectNetworkInfo(instanceId)
       const info = resp?.info?.map?.[instanceId]

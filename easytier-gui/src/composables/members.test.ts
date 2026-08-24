@@ -1,5 +1,12 @@
-import { describe, it, expect } from 'vitest'
-import { normalizeMembers } from './members'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  collectNetworkInfo: vi.fn(),
+}))
+
+vi.mock('./backend', () => mocks)
+
+import { useMembers, normalizeMembers } from './members'
 
 describe('normalizeMembers', () => {
   it('映射 route+peer 为成员行，cost 判定本地/直连/中转', () => {
@@ -78,5 +85,37 @@ describe('normalizeMembers', () => {
     const rows = normalizeMembers(info)
     expect(rows[0].ipv4).toBe('10.0.0.3')
     expect(rows[0].nat_type).toBe('nat1')
+  })
+})
+
+describe('useMembers', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('已有数据时后台刷新不置 loading，保持静默更新', async () => {
+    const infoWithMember = {
+      info: {
+        map: {
+          i1: {
+            my_node_info: { peer_id: 1 },
+            routes: [{ peer_id: 1, hostname: 'local' }],
+            peers: [],
+          },
+        },
+      },
+    }
+    mocks.collectNetworkInfo.mockResolvedValue(infoWithMember)
+    const m = useMembers()
+    await m.fetch('i1')
+    expect(m.rows.value).toHaveLength(1)
+
+    let resolveFetch!: (v: unknown) => void
+    mocks.collectNetworkInfo.mockReturnValue(new Promise((r) => { resolveFetch = r }))
+    const p = m.fetch('i1')
+    expect(m.loading.value).toBe(false)
+    resolveFetch(infoWithMember)
+    await p
+    expect(m.loading.value).toBe(false)
   })
 })
