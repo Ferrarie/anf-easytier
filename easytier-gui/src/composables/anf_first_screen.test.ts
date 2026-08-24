@@ -1,4 +1,6 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { useAnfFirstScreen } from './anf_first_screen'
 
 const mocks = vi.hoisted(() => ({
   anfLoadConfig: vi.fn(),
@@ -13,8 +15,6 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('./backend', () => mocks)
-
-import { useAnfFirstScreen } from './anf_first_screen'
 
 function makeCfg(overrides: Record<string, unknown> = {}) {
   return {

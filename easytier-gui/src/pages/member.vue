@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import AnfMemberList from '~/components/AnfMemberList.vue'
-import { networkCidr } from '~/composables/ip_cidr'
 import { anfLoadConfig, collectNetworkInfo } from '~/composables/backend'
+import { networkCidr } from '~/composables/ip_cidr'
 
 // 成员窗口是独立 WebviewWindow，无法直接跨窗口读主屏 ref；从本地配置取当前档案的实例 id。
 const instanceId = ref<string>('')
@@ -29,7 +29,9 @@ onMounted(async () => {
 
 <template>
   <div class="h-full w-full overflow-auto p-2">
-    <div v-if="cidr" class="mb-1 px-1 text-xs text-secondary">网段：{{ cidr }}</div>
+    <div v-if="cidr" class="mb-1 px-1 text-xs text-secondary">
+      网段：{{ cidr }}
+    </div>
     <AnfMemberList :instance-id="instanceId" />
   </div>
 </template>

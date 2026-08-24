@@ -1,35 +1,35 @@
 <script setup lang="ts">
-
-import { type } from '@tauri-apps/plugin-os'
+import type { MenuItem } from 'primevue/menuitem'
 
 import { invoke } from '@tauri-apps/api/core'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
-import { open } from '@tauri-apps/plugin-shell'
+import { type } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
-import { I18nUtils, Utils } from "easytier-frontend-lib"
-import type { MenuItem } from 'primevue/menuitem'
-import { useTray } from '~/composables/tray'
-import { initMobileVpnService, syncMobileVpnService } from '~/composables/mobile_vpn'
-
+import { open } from '@tauri-apps/plugin-shell'
+import { I18nUtils, Utils } from 'easytier-frontend-lib'
 import { useToast } from 'primevue'
-import { loadMode, saveMode, type Mode } from '~/composables/mode'
 import AnfFirstScreen from '~/components/AnfFirstScreen.vue'
 
+import { initMobileVpnService, syncMobileVpnService } from '~/composables/mobile_vpn'
+import { loadMode, type Mode, saveMode } from '~/composables/mode'
+import { useTray } from '~/composables/tray'
+
 const { t, locale } = useI18n()
+const toast = useToast()
 const aboutVisible = ref(false)
 const currentMode = ref<Mode>({ mode: 'normal' })
 
 async function initWithMode(mode: Mode) {
   const running_inst_ids = (await listNetworkInstanceIds().catch(() => undefined))?.running_inst_ids ?? []
 
-  let url: string | undefined = undefined
-  let retrys = 1
-  url = mode.rpc_portal;
+  const url: string | undefined = mode.rpc_portal
+  const retrys = 1
   for (let i = 0; i < retrys; i++) {
     try {
       await connectRpcClient(mode.mode === 'normal', url)
-      break;
-    } catch (e) {
+      break
+    }
+    catch (e) {
       if (i === retrys - 1) {
         const errMsg = e instanceof Error ? e.message : String(e)
         toast.add({
@@ -38,9 +38,9 @@ async function initWithMode(mode: Mode) {
           detail: t('mode.rpc_connection_failed', { error: errMsg }),
           life: 1000,
         })
-        throw e;
+        throw e
       }
-      console.error("Error connecting rpc client, retrying...", e)
+      console.error('Error connecting rpc client, retrying...', e)
       await new Promise(resolve => setTimeout(resolve, 1000))
     }
   }
@@ -59,30 +59,31 @@ onMounted(async () => {
   if (type() === 'android') {
     try {
       await initMobileVpnService()
-    } catch (e: any) {
-      console.error("easytier init vpn service failed", e)
+    }
+    catch (e: any) {
+      console.error('easytier init vpn service failed', e)
     }
   }
 
   cleanupFns.push(await listenGlobalEvents())
   currentMode.value = loadMode()
-  await initWithMode(currentMode.value);
+  await initWithMode(currentMode.value)
 
   if (type() === 'android') {
     try {
       await syncMobileVpnService()
-    } catch (e: any) {
-      console.error("easytier sync vpn service failed", e)
+    }
+    catch (e: any) {
+      console.error('easytier sync vpn service failed', e)
     }
   }
 
   onUnmounted(() => {
     cleanupFns.forEach(unlisten => unlisten())
   })
-});
+})
 
 useTray(true)
-let toast = useToast();
 
 onMounted(async () => {
   window.setTimeout(async () => {
@@ -174,9 +175,8 @@ const setting_menu_items: Ref<MenuItem[]> = ref([
 
 async function connectRpcClient(isNormalMode: boolean, url?: string) {
   await initRpcConnection(isNormalMode, url)
-  console.log("easytier rpc connection established, isNormalMode: ", isNormalMode)
+  console.warn('easytier rpc connection established, isNormalMode: ', isNormalMode)
 }
-
 </script>
 
 <template>
@@ -194,7 +194,7 @@ async function connectRpcClient(isNormalMode: boolean, url?: string) {
         <a v-if="item.key === 'logging_menu'" v-bind="props.action" @click="toggle_log_menu">
           <span :class="item.icon" />
           <span class="p-menubar-item-label">{{ getLabel(item) }}</span>
-          <span class="pi pi-angle-down p-menubar-item-icon text-[9px]"></span>
+          <span class="pi pi-angle-down p-menubar-item-icon text-[9px]" />
         </a>
         <a v-else v-bind="props.action">
           <span :class="item.icon" />

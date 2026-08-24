@@ -1,14 +1,14 @@
 import { getCurrentInstance, onUnmounted, ref, watch } from 'vue'
 import {
-  anfLoadConfig,
-  anfSaveConfig,
   anfGetMachineId,
+  anfLoadConfig,
   anfNormalizeAddress,
+  anfSaveConfig,
   deleteNetworkInstance,
+  getNetworkMetas,
   initWebClient,
   isWebClientConnected,
   listNetworkInstanceIds,
-  getNetworkMetas,
 } from './backend'
 
 // 兼容 proto 上报的 UUID（{part1..part4}）与直达字符串，本地实现避免引入 frontend-lib 重依赖。
@@ -17,7 +17,7 @@ function instanceIdToStr(id: unknown): string {
     return id
   }
   if (id && typeof id === 'object') {
-    const u = id as { part1?: number; part2?: number; part3?: number; part4?: number }
+    const u = id as { part1?: number, part2?: number, part3?: number, part4?: number }
     if (
       typeof u.part1 === 'number' && typeof u.part2 === 'number'
       && typeof u.part3 === 'number' && typeof u.part4 === 'number'
@@ -60,8 +60,10 @@ function clampIndex(value: number, max: number): number {
     return 0
   }
   const n = Math.trunc(value)
-  if (n < 0) return 0
-  if (n > max) return max
+  if (n < 0)
+    return 0
+  if (n > max)
+    return max
   return n
 }
 
@@ -89,7 +91,7 @@ export function useAnfFirstScreen() {
       clearTimeout(saveTimer)
     }
     saveTimer = setTimeout(() => {
-      persist().catch((e) => console.warn('anf autosave failed', e))
+      persist().catch(e => console.warn('anf autosave failed', e))
     }, 400)
   }
 
@@ -271,7 +273,8 @@ export function useAnfFirstScreen() {
     try {
       // machine_id 固定，hostname 用昵称（display_name，广播给其它成员）。
       await initWebClient(addr, machineId.value, nickname.value.trim() || undefined)
-    } catch (e) {
+    }
+    catch (e) {
       status.value = 'failed'
       errorMsg.value = e instanceof Error ? e.message : String(e)
       return
@@ -282,7 +285,8 @@ export function useAnfFirstScreen() {
     if (terminal) {
       return
     }
-    if (pollTimer) clearInterval(pollTimer)
+    if (pollTimer)
+      clearInterval(pollTimer)
     pollTimer = setInterval(async () => {
       const done = await pollStatusOnce()
       if (done) {
@@ -297,23 +301,26 @@ export function useAnfFirstScreen() {
       const connected = await isWebClientConnected()
       if (!connected) {
         // 还没连上 config-server，可能仍在重试。
-        if (status.value !== 'failed') status.value = 'connecting'
+        if (status.value !== 'failed')
+          status.value = 'connecting'
         return false
       }
       // 已连上：若已有运行实例（拿到托管配置建了 TUN）才算真正联网。
       const { running_inst_ids } = await listNetworkInstanceIds()
       const runningIds = (running_inst_ids ?? [])
         .map(instanceIdToStr)
-        .filter((id) => id.length > 0)
+        .filter(id => id.length > 0)
       if (runningIds.length > 0) {
         status.value = 'connected'
         await captureAndPersist(runningIds)
         return true
-      } else {
+      }
+      else {
         status.value = 'pending'
         return false
       }
-    } catch (e) {
+    }
+    catch (e) {
       // 轮询失败不改变已连上状态，仅在 idle/connecting 时标记失败。
       if (status.value !== 'connected') {
         status.value = 'failed'
@@ -329,21 +336,25 @@ export function useAnfFirstScreen() {
     cleanup()
     try {
       await initWebClient(undefined, undefined, undefined)
-    } catch {
+    }
+    catch {
       // 忽略断开错误
     }
     try {
       const { running_inst_ids } = await listNetworkInstanceIds()
       for (const raw of running_inst_ids ?? []) {
         const id = instanceIdToStr(raw)
-        if (!id) continue
+        if (!id)
+          continue
         try {
           await deleteNetworkInstance(id)
-        } catch (e) {
+        }
+        catch (e) {
           console.warn('anf stop: remove network instance failed', id, e)
         }
       }
-    } catch (e) {
+    }
+    catch (e) {
       console.warn('anf stop: list network instances failed', e)
     }
     status.value = 'idle'

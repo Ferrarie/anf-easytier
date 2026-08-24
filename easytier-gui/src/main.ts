@@ -1,15 +1,18 @@
-import Aura from '@primeuix/themes/aura';
-import PrimeVue from 'primevue/config';
+import Aura from '@primeuix/themes/aura'
+import EasyTierFrontendLib, { I18nUtils } from 'easytier-frontend-lib'
 
-import EasyTierFrontendLib, { I18nUtils } from 'easytier-frontend-lib';
-import { createRouter, createWebHashHistory } from 'vue-router/auto';
-import { routes } from 'vue-router/auto-routes';
-import App from '~/App.vue';
+import { ConfirmationService, DialogService, ToastService } from 'primevue'
+import PrimeVue from 'primevue/config'
 
-import 'easytier-frontend-lib/style.css';
-import { ConfirmationService, DialogService, ToastService } from 'primevue';
-import '~/styles.css';
+// vue-router/auto 与 auto-routes 是不同虚拟模块，TS 依赖分开导入；no-duplicates 会按物理文件判重，故就地豁免。
+/* eslint-disable import/no-duplicates */
+import { createRouter, createWebHashHistory } from 'vue-router/auto'
+import { routes } from 'vue-router/auto-routes'
+/* eslint-enable import/no-duplicates */
 
+import App from '~/App.vue'
+import 'easytier-frontend-lib/style.css'
+import '~/styles.css'
 
 if (import.meta.env.PROD) {
   document.addEventListener('keydown', (event) => {

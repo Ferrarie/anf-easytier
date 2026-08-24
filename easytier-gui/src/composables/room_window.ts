@@ -7,7 +7,8 @@ export type MemberWindowAction = 'create' | 'close' | 'show'
  * 隐藏->show。参照 easytier-game `composables/windows.ts` 的 etWindows。
  */
 export function resolveMemberWindowAction(existing: { visible: boolean } | null): MemberWindowAction {
-  if (!existing) return 'create'
+  if (!existing)
+    return 'create'
   return existing.visible ? 'close' : 'show'
 }
 
@@ -22,7 +23,8 @@ export function canOpenMemberWindow(status: string, lastInstanceId?: string): bo
  * 开合 member 窗口。动态 import Tauri API，避免在 vitest 单测中加载 Tauri 运行时。
  */
 export async function toggleMemberWindow(status: string, lastInstanceId?: string): Promise<void> {
-  if (!canOpenMemberWindow(status, lastInstanceId)) return
+  if (!canOpenMemberWindow(status, lastInstanceId))
+    return
 
   const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow')
   const { getCurrentWindow, PhysicalPosition } = await import('@tauri-apps/api/window')
@@ -45,7 +47,7 @@ export async function toggleMemberWindow(status: string, lastInstanceId?: string
   const pos = await app.outerPosition()
   const logical = new PhysicalPosition(pos.x + Math.ceil(345 * factor), pos.y).toLogical(factor)
 
-  new WebviewWindow('member', {
+  void new WebviewWindow('member', {
     title: '成员列表',
     width: 880,
     height: 460,

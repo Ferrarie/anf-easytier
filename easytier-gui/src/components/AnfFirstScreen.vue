@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { onMounted, computed, ref } from 'vue'
 import { type } from '@tauri-apps/plugin-os'
+import { computed, onMounted, ref } from 'vue'
 import { useAnfFirstScreen } from '~/composables/anf_first_screen'
 import { canOpenMemberWindow, toggleMemberWindow } from '~/composables/room_window'
 
@@ -102,9 +102,6 @@ async function onToggleRun() {
       console.warn('persist config failed, continuing to start', e)
     }
     await start()
-    if (errorMsg.value) {
-      return
-    }
   }
 }
 </script>
@@ -120,16 +117,22 @@ async function onToggleRun() {
       {{ t('admin.hint') }}
     </Message>
 
-    <Message v-if="errorMsg" severity="warn" :closable="true">{{ errorMsg }}</Message>
+    <Message v-if="errorMsg" severity="warn" :closable="true">
+      {{ errorMsg }}
+    </Message>
 
     <div class="flex flex-col gap-1">
       <label class="text-sm font-medium">连接配置（自动保存）</label>
       <div class="flex items-center gap-2">
-        <Select :model-value="activeIndex" :options="profileOptions" option-label="label" option-value="value"
-          class="flex-1" @update:model-value="onSelectProfile" />
+        <Select
+          :model-value="activeIndex" :options="profileOptions" option-label="label" option-value="value"
+          class="flex-1" @update:model-value="onSelectProfile"
+        />
         <Button size="small" icon="pi pi-plus" severity="secondary" label="新建" @click="addProfile" />
-        <Button size="small" icon="pi pi-trash" severity="danger" text label="删除"
-          :disabled="profiles.length <= 1" @click="onRemoveCurrent" />
+        <Button
+          size="small" icon="pi pi-trash" severity="danger" text label="删除"
+          :disabled="profiles.length <= 1" @click="onRemoveCurrent"
+        />
       </div>
       <small class="text-secondary">可保存多套中心地址，切换会先保存当前项；机器码不变</small>
     </div>
@@ -159,8 +162,10 @@ async function onToggleRun() {
     </div>
 
     <div class="border-t pt-3">
-      <Button text size="small" icon="pi pi-cog" label="高级" class="p-0"
-        @click="advancedOpen = !advancedOpen" />
+      <Button
+        text size="small" icon="pi pi-cog" label="高级" class="p-0"
+        @click="advancedOpen = !advancedOpen"
+      />
       <div v-if="advancedOpen" class="mt-3 flex flex-col gap-3">
         <div class="flex flex-col gap-1">
           <label class="text-sm font-medium">网络名称</label>
@@ -181,9 +186,11 @@ async function onToggleRun() {
     </div>
 
     <div class="border-t pt-3">
-      <Button text size="small" icon="pi pi-users" label="房间信息" class="p-0"
+      <Button
+        text size="small" icon="pi pi-users" label="房间信息" class="p-0"
         :disabled="!canOpenMemberWindow(status, lastInstanceId)"
-        @click="toggleMemberWindow(status, lastInstanceId)" />
+        @click="toggleMemberWindow(status, lastInstanceId)"
+      />
       <small class="ml-2 text-secondary">打开成员列表独立窗口</small>
     </div>
   </div>

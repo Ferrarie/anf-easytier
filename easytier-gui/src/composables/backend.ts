@@ -1,6 +1,7 @@
+import type { Api } from 'easytier-frontend-lib'
+import type { GetNetworkMetasResponse } from 'node_modules/easytier-frontend-lib/dist/modules/api'
 import { invoke } from '@tauri-apps/api/core'
-import { Api, NetworkTypes } from 'easytier-frontend-lib'
-import { GetNetworkMetasResponse } from 'node_modules/easytier-frontend-lib/dist/modules/api'
+import { NetworkTypes } from 'easytier-frontend-lib'
 import { type ConfigSource, normalizeConfigSource } from './config_source'
 
 type NetworkConfig = NetworkTypes.NetworkConfig
@@ -14,7 +15,7 @@ interface ServiceOptions {
   config_server?: string
 }
 
-export type ServiceStatus = "Running" | "Stopped" | "NotInstalled"
+export type ServiceStatus = 'Running' | 'Stopped' | 'NotInstalled'
 
 interface StoredGuiConfig {
   config: NetworkConfig
@@ -114,7 +115,7 @@ export async function sendConfigs(enabledNetworks: string[]) {
       config: NetworkTypes.toBackendNetworkConfig(config),
       source,
     })),
-    enabledNetworks
+    enabledNetworks,
   })
 }
 

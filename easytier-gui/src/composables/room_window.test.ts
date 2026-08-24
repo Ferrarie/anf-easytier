@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { resolveMemberWindowAction, canOpenMemberWindow } from './room_window'
+import { describe, expect, it } from 'vitest'
+import { canOpenMemberWindow, resolveMemberWindowAction } from './room_window'
 
 describe('resolveMemberWindowAction', () => {
   it('无窗口 -> create', () => {

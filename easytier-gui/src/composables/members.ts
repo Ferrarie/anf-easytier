@@ -42,7 +42,8 @@ function formatIpv4(addr: any): string {
 }
 
 export function normalizeMembers(info: any): MemberRow[] {
-  if (!info?.routes) return []
+  if (!info?.routes)
+    return []
   const myPeerId = info.my_node_info?.peer_id
   return info.routes.map((route: any) => {
     const peer = info.peers?.find((p: any) => p.peer_id === route.peer_id)
@@ -50,10 +51,13 @@ export function normalizeMembers(info: any): MemberRow[] {
     const best = [...conns].sort((a: any, b: any) =>
       (a.stats?.latency_us ?? Number.MAX_SAFE_INTEGER) - (b.stats?.latency_us ?? Number.MAX_SAFE_INTEGER))[0]
     const directly = !!peer && (peer.directly_connected_conns?.length ?? 0) > 0
-    const cost = myPeerId === route.peer_id ? 'Local'
-      : directly && route.next_hop_peer_id === route.peer_id ? 'p2p'
-        : (route.next_hop_peer_id ?? 0) !== 0 && route.next_hop_peer_id !== route.peer_id ? 'relay'
-          : directly ? 'p2p' : 'relay'
+    const cost = myPeerId === route.peer_id
+      ? 'Local'
+      : directly && route.next_hop_peer_id === route.peer_id
+        ? 'p2p'
+        : (route.next_hop_peer_id ?? 0) !== 0 && route.next_hop_peer_id !== route.peer_id
+            ? 'relay'
+            : directly ? 'p2p' : 'relay'
     const tunnel = best?.tunnel
     return {
       peer_id: route.peer_id,

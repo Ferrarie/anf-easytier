@@ -12,8 +12,9 @@ export function networkCidr(info: any): string {
   const v = info?.my_node_info?.virtual_ipv4
   const addr: number | undefined = v?.address?.addr
   const len: number | undefined = v?.network_length
-  if (typeof addr !== 'number' || typeof len !== 'number' || len < 0 || len > 32) return ''
-  const mask = len === 0 ? 0 : (0xffffffff << (32 - len)) >>> 0
+  if (typeof addr !== 'number' || typeof len !== 'number' || len < 0 || len > 32)
+    return ''
+  const mask = len === 0 ? 0 : (0xFFFFFFFF << (32 - len)) >>> 0
   const base = (addr & mask) >>> 0
   return `${ipv4NumberToDotted(base)}/${len}`
 }
