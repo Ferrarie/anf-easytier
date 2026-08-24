@@ -67,6 +67,13 @@ jobs:
           echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
           echo "NDK_HOME=$ANDROID_HOME/ndk/26.0.10792818/" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.0.10792818/" >> "$GITHUB_ENV"
+          # bindgen（kcp-sys）需要 libclang；优先用 NDK 自带的，缺失则 apt 安装
+          NDK_LIB64="$ANDROID_HOME/ndk/26.0.10792818/toolchains/llvm/prebuilt/linux-x86_64/lib64"
+          if ls "$NDK_LIB64"/libclang.so* >/dev/null 2>&1; then
+            echo "LIBCLANG_PATH=$NDK_LIB64" >> "$GITHUB_ENV"
+          else
+            apt-get update -qq && apt-get install -y -qq libclang-dev
+          fi
 
       - name: Build frontend lib
         run: pnpm --dir easytier-web/frontend-lib build
