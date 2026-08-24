@@ -182,7 +182,7 @@ async function onToggleRun() {
 
       <div class="flex flex-col gap-1.5">
         <label class="text-sm font-medium">机器码</label>
-        <div class="flex items-center gap-2 rounded-lg border border-[color:var(--anf-border)] px-3 py-2">
+        <div class="flex items-center gap-2 rounded-lg border border-[color:var(--anf-border)] bg-[color:var(--p-surface-100)] px-3 py-2">
           <code class="min-w-0 flex-1 truncate text-xs opacity-80">{{ machineId }}</code>
           <Button
             icon="pi pi-copy" text size="small" aria-label="复制机器码"
@@ -200,9 +200,9 @@ async function onToggleRun() {
 
       <div class="border-t pt-3">
         <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
-          <Button text size="small" icon="pi pi-cog" :label="advancedOpen ? '收起高级' : '高级'" class="p-0" @click="advancedOpen = !advancedOpen" />
+          <Button text size="small" icon="pi pi-cog" :label="advancedOpen ? '收起高级' : '高级'" class="p-0 font-medium" @click="advancedOpen = !advancedOpen" />
           <Button
-            text size="small" icon="pi pi-users" label="房间信息" class="p-0"
+            text size="small" icon="pi pi-users" label="房间信息" class="p-0 font-medium"
             :disabled="!canOpenMemberWindow(status, lastInstanceId)"
             @click="toggleMemberWindow(status, lastInstanceId)"
           />
