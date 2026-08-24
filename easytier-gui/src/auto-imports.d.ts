@@ -26,6 +26,7 @@ declare global {
   const defineStore: typeof import('pinia')['defineStore']
   const deleteNetworkInstance: typeof import('./composables/backend')['deleteNetworkInstance']
   const effectScope: typeof import('vue')['effectScope']
+  const formatVersionDisplay: typeof import('./composables/version')['formatVersionDisplay']
   const generateMenuItem: typeof import('./composables/tray')['generateMenuItem']
   const generateNetworkConfig: typeof import('./composables/backend')['generateNetworkConfig']
   const getActivePinia: typeof import('pinia')['getActivePinia']
@@ -166,6 +167,7 @@ declare module 'vue' {
     readonly defineStore: UnwrapRef<typeof import('pinia')['defineStore']>
     readonly deleteNetworkInstance: UnwrapRef<typeof import('./composables/backend')['deleteNetworkInstance']>
     readonly effectScope: UnwrapRef<typeof import('vue')['effectScope']>
+    readonly formatVersionDisplay: UnwrapRef<typeof import('./composables/version')['formatVersionDisplay']>
     readonly generateMenuItem: UnwrapRef<typeof import('./composables/tray')['generateMenuItem']>
     readonly generateNetworkConfig: UnwrapRef<typeof import('./composables/backend')['generateNetworkConfig']>
     readonly getActivePinia: UnwrapRef<typeof import('pinia')['getActivePinia']>
