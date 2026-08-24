@@ -8,6 +8,7 @@ import { exit } from '@tauri-apps/plugin-process'
 import { open } from '@tauri-apps/plugin-shell'
 import { I18nUtils, Utils } from 'easytier-frontend-lib'
 import { useToast } from 'primevue'
+import pkg from '~/../package.json'
 import AnfFirstScreen from '~/components/AnfFirstScreen.vue'
 
 import { initMobileVpnService, syncMobileVpnService } from '~/composables/mobile_vpn'
@@ -187,9 +188,28 @@ async function connectRpcClient(isNormalMode: boolean, url?: string) {
 
     <Menu ref="log_menu" :model="log_menu_items_popup" :popup="true" />
 
-    <AnfFirstScreen class="flex-1 overflow-y-auto" />
-
-    <Menubar :model="setting_menu_items" breakpoint="795px">
+    <Menubar :model="setting_menu_items" breakpoint="795px" class="shrink-0 border-x-0 border-t-0">
+      <template #start>
+        <div class="mr-6 flex items-center gap-2.5 py-1">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="anf-logo-g" x1="0" y1="0" x2="28" y2="28">
+                <stop stop-color="#6366f1" />
+                <stop offset="1" stop-color="#8b5cf6" />
+              </linearGradient>
+            </defs>
+            <rect width="28" height="28" rx="8" fill="url(#anf-logo-g)" />
+            <circle cx="9" cy="10" r="2.6" fill="#fff" />
+            <circle cx="19" cy="8" r="2.2" fill="#fff" opacity=".85" />
+            <circle cx="18" cy="19" r="2.8" fill="#fff" />
+            <path d="M11.2 11.2 17 8.8M10.5 12.3l5.9 5.2M15.7 8.9 17.4 16.3" stroke="#fff" stroke-width="1.4" stroke-linecap="round" />
+          </svg>
+          <div class="flex flex-col leading-tight">
+            <span class="text-sm font-semibold">ANF 平台架构</span>
+            <span class="anf-muted text-xs">v{{ pkg.version }}</span>
+          </div>
+        </div>
+      </template>
       <template #item="{ item, props }">
         <a v-if="item.key === 'logging_menu'" v-bind="props.action" @click="toggle_log_menu">
           <span :class="item.icon" />
@@ -202,6 +222,10 @@ async function connectRpcClient(isNormalMode: boolean, url?: string) {
         </a>
       </template>
     </Menubar>
+
+    <main class="min-h-0 flex-1 overflow-y-auto">
+      <AnfFirstScreen class="mx-auto w-full max-w-xl px-4 py-5" />
+    </main>
   </div>
 </template>
 
