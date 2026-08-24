@@ -1,4 +1,5 @@
 import Aura from '@primeuix/themes/aura'
+import { definePreset } from '@primeuix/themes'
 import EasyTierFrontendLib, { I18nUtils } from 'easytier-frontend-lib'
 
 import { ConfirmationService, DialogService, ToastService } from 'primevue'
@@ -13,6 +14,25 @@ import { routes } from 'vue-router/auto-routes'
 import App from '~/App.vue'
 import 'easytier-frontend-lib/style.css'
 import '~/styles.css'
+
+// ANF 品牌主色：indigo 色阶（与 #6366f1→#8b5cf6 渐变同族，深浅模式自动适配）
+const AnfPreset = definePreset(Aura, {
+  semantic: {
+    primary: {
+      50: '#eef2ff',
+      100: '#e0e7ff',
+      200: '#c7d2fe',
+      300: '#a5b4fc',
+      400: '#818cf8',
+      500: '#6366f1',
+      600: '#4f46e5',
+      700: '#4338ca',
+      800: '#3730a3',
+      900: '#312e81',
+      950: '#1e1b4b',
+    },
+  },
+})
 
 if (import.meta.env.PROD) {
   document.addEventListener('keydown', (event) => {
@@ -46,7 +66,7 @@ async function main() {
   // app.use(i18n, { useScope: 'global' })
   app.use(PrimeVue, {
     theme: {
-      preset: Aura,
+      preset: AnfPreset,
       options: {
         prefix: 'p',
         darkModeSelector: 'system',
