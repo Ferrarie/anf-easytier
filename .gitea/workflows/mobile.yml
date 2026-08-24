@@ -71,6 +71,10 @@ jobs:
       - name: Build frontend lib
         run: pnpm --dir easytier-web/frontend-lib build
 
+      - name: Build VPN service API
+        # tauri-plugin-vpnservice-api 的 types/main 指向 dist-js（rollup 产物，未提交），需先构建供 vue-tsc 解析
+        run: pnpm --dir tauri-plugin-vpnservice build
+
       - name: Build APK
         run: |
           cd easytier-gui
