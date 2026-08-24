@@ -225,7 +225,8 @@ igd-next = { version = "0.17.0", features = ["aio_tokio"], optional = true }
 natpmp = { version = "0.5.0", optional = true }
 
 [target.'cfg(any(target_os = "linux", target_os = "macos", target_os = "windows", target_os = "freebsd"))'.dependencies]
-machine-uid = "0.5.3"
+# 0.6.0 移除 machine_id 依赖，支持 Android 目标编译
+machine-uid = "0.6.0"
 
 [target.'cfg(any(target_os = "linux"))'.dependencies]
 netlink-sys = { version = "0.8.7", optional = true }

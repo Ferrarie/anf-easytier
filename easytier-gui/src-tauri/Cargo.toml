@@ -45,7 +45,8 @@ tauri-plugin-vpnservice = { path = "../../tauri-plugin-vpnservice" }
 tauri-plugin-os = "2.3.0"
 
 uuid = { version = "1.17.0", features = ["v5"] }
-machine-uid = "0.5.3"
+# 0.6.0 移除 machine_id 依赖，支持 Android 目标编译
+machine-uid = "0.6.0"
 async-trait = "0.1.89"
 
 url = { version = "2.5", features = ["serde"] }
