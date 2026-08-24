@@ -1,6 +1,6 @@
 [package]
 name = "anf-easytier"
-version = "2.6.4"
+version = "1.0.0"
 description = "ANF 平台架构 客户端（中心化组网）"
 authors = ["you"]
 edition.workspace = true

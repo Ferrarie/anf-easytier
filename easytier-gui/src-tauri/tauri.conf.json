@@ -17,7 +17,7 @@
     "createUpdaterArtifacts": false
   },
   "productName": "anf-easytier",
-  "version": "2.6.4",
+  "version": "1.0.0",
   "identifier": "com.anidev.anfeasytier",
   "plugins": {
     "shell": {
