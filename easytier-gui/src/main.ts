@@ -1,5 +1,5 @@
-import Aura from '@primeuix/themes/aura'
 import { definePreset } from '@primeuix/themes'
+import Aura from '@primeuix/themes/aura'
 import EasyTierFrontendLib, { I18nUtils } from 'easytier-frontend-lib'
 
 import { ConfirmationService, DialogService, ToastService } from 'primevue'

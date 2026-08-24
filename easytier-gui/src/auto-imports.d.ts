@@ -14,6 +14,7 @@ declare global {
   const anfLoadConfig: typeof import('./composables/backend')['anfLoadConfig']
   const anfNormalizeAddress: typeof import('./composables/backend')['anfNormalizeAddress']
   const anfSaveConfig: typeof import('./composables/backend')['anfSaveConfig']
+  const anfStatusMeta: typeof import('./composables/anf_status')['anfStatusMeta']
   const canOpenMemberWindow: typeof import('./composables/room_window')['canOpenMemberWindow']
   const collectNetworkInfo: typeof import('./composables/backend')['collectNetworkInfo']
   const computed: typeof import('vue')['computed']
@@ -153,6 +154,7 @@ declare module 'vue' {
     readonly anfLoadConfig: UnwrapRef<typeof import('./composables/backend')['anfLoadConfig']>
     readonly anfNormalizeAddress: UnwrapRef<typeof import('./composables/backend')['anfNormalizeAddress']>
     readonly anfSaveConfig: UnwrapRef<typeof import('./composables/backend')['anfSaveConfig']>
+    readonly anfStatusMeta: UnwrapRef<typeof import('./composables/anf_status')['anfStatusMeta']>
     readonly canOpenMemberWindow: UnwrapRef<typeof import('./composables/room_window')['canOpenMemberWindow']>
     readonly collectNetworkInfo: UnwrapRef<typeof import('./composables/backend')['collectNetworkInfo']>
     readonly computed: UnwrapRef<typeof import('vue')['computed']>
