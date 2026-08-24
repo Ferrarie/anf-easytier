@@ -93,6 +93,17 @@ describe('useMembers', () => {
     vi.clearAllMocks()
   })
 
+  it('首屏（列表为空）加载期间置 loading，结束后回 false', async () => {
+    let resolveFetch!: (v: unknown) => void
+    mocks.collectNetworkInfo.mockReturnValue(new Promise((r) => { resolveFetch = r }))
+    const m = useMembers()
+    const p = m.fetch('i1')
+    expect(m.loading.value).toBe(true)
+    resolveFetch({ info: { map: { i1: { routes: [] } } } })
+    await p
+    expect(m.loading.value).toBe(false)
+  })
+
   it('已有数据时后台刷新不置 loading，保持静默更新', async () => {
     const infoWithMember = {
       info: {
