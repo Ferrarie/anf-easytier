@@ -4,6 +4,7 @@ import {
   anfSaveConfig,
   anfGetMachineId,
   anfNormalizeAddress,
+  deleteNetworkInstance,
   initWebClient,
   isWebClientConnected,
   listNetworkInstanceIds,
@@ -323,13 +324,27 @@ export function useAnfFirstScreen() {
     }
   }
 
-  /** 停止：断开 config-server 连接。 */
+  /** 停止：断开 config-server 连接，并停止/删除由服务器下发的运行实例（虚拟网卡随之消失）。 */
   async function stop() {
     cleanup()
     try {
       await initWebClient(undefined, undefined, undefined)
     } catch {
       // 忽略断开错误
+    }
+    try {
+      const { running_inst_ids } = await listNetworkInstanceIds()
+      for (const raw of running_inst_ids ?? []) {
+        const id = instanceIdToStr(raw)
+        if (!id) continue
+        try {
+          await deleteNetworkInstance(id)
+        } catch (e) {
+          console.warn('anf stop: remove network instance failed', id, e)
+        }
+      }
+    } catch (e) {
+      console.warn('anf stop: list network instances failed', e)
     }
     status.value = 'idle'
   }

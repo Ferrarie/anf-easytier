@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   isWebClientConnected: vi.fn(),
   listNetworkInstanceIds: vi.fn(),
   getNetworkMetas: vi.fn(),
+  deleteNetworkInstance: vi.fn(),
 }))
 
 vi.mock('./backend', () => mocks)
@@ -35,6 +36,7 @@ describe('useAnfFirstScreen', () => {
     mocks.isWebClientConnected.mockResolvedValue(false)
     mocks.listNetworkInstanceIds.mockResolvedValue({ running_inst_ids: [], disabled_inst_ids: [] })
     mocks.getNetworkMetas.mockResolvedValue({ metas: {} })
+    mocks.deleteNetworkInstance.mockResolvedValue(undefined)
   })
 
   it('init 载入配置并补齐机器 ID', async () => {
@@ -150,6 +152,26 @@ describe('useAnfFirstScreen', () => {
     await s.stop()
     expect(mocks.initWebClient).toHaveBeenCalledWith(undefined, undefined, undefined)
     expect(s.status.value).toBe('idle')
+  })
+
+  it('stop 断开 WebClient 后删除所有运行实例并回 idle', async () => {
+    mocks.listNetworkInstanceIds.mockResolvedValue({ running_inst_ids: ['i1', 'i2'], disabled_inst_ids: [] })
+    const s = useAnfFirstScreen()
+    await s.stop()
+    expect(mocks.initWebClient).toHaveBeenCalledWith(undefined, undefined, undefined)
+    expect(mocks.deleteNetworkInstance).toHaveBeenCalledWith('i1')
+    expect(mocks.deleteNetworkInstance).toHaveBeenCalledWith('i2')
+    expect(s.status.value).toBe('idle')
+  })
+
+  it('stop 删除实例失败不阻断，仍回 idle', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    mocks.listNetworkInstanceIds.mockResolvedValue({ running_inst_ids: ['i1'], disabled_inst_ids: [] })
+    mocks.deleteNetworkInstance.mockRejectedValue(new Error('删除失败'))
+    const s = useAnfFirstScreen()
+    await s.stop()
+    expect(s.status.value).toBe('idle')
+    vi.restoreAllMocks()
   })
 
   it('start 连接失败标记 failed 并给出原因', async () => {
