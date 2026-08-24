@@ -82,9 +82,10 @@ macro_rules! get_client_manager {
     }};
 }
 
+/// 返回 core（easytier 引擎）版本；GUI 自身版本由前端 package.json 提供。
 #[tauri::command]
 fn easytier_version() -> Result<String, String> {
-    Ok(format!("{} (core {})", env!("CARGO_PKG_VERSION"), easytier::VERSION))
+    Ok(easytier::VERSION.to_string())
 }
 
 /// 是否以管理员身份运行（Windows 上创建 TUN 虚拟网卡需要）。
@@ -1495,4 +1496,14 @@ pub fn run_cli() -> std::process::ExitCode {
         .build()
         .unwrap()
         .block_on(async { easytier::core::main().await })
+}
+
+#[cfg(test)]
+mod version_tests {
+    use super::easytier_version;
+
+    #[test]
+    fn easytier_version_returns_only_core_version() {
+        assert_eq!(easytier_version().unwrap(), easytier::VERSION);
+    }
 }
