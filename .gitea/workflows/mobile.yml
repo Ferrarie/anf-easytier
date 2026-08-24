@@ -74,6 +74,8 @@ jobs:
           else
             apt-get update -qq && apt-get install -y -qq libclang-dev
           fi
+          # kcp-sys 的 bindgen 只传 --target 不传 --sysroot，需显式指向 NDK sysroot，否则回落解析宿主机 glibc 头文件
+          echo "BINDGEN_EXTRA_CLANG_ARGS=--sysroot=$ANDROID_HOME/ndk/26.0.10792818/toolchains/llvm/prebuilt/linux-x86_64/sysroot" >> "$GITHUB_ENV"
 
       - name: Build frontend lib
         run: pnpm --dir easytier-web/frontend-lib build
