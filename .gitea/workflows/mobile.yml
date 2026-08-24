@@ -1,0 +1,70 @@
+# ANFAGENT-30 移动端 APK 构建（gitea actions）——对照 .github/workflows/mobile.yml
+name: mobile-apk
+
+on:
+  push:
+    branches: [main, codex/*]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: oracle
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 12.0
+          packages: 'build-tools;34.0.0 ndk;26.0.10792818 platform-tools platforms;android-34'
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Setup protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: '35.1'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set Android environment
+        run: |
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/26.0.10792818/" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.0.10792818/" >> "$GITHUB_ENV"
+
+      - name: Build frontend lib
+        run: pnpm --dir easytier-web/frontend-lib build
+
+      - name: Build APK
+        run: |
+          cd easytier-gui
+          pnpm tauri android build --apk --split-per-abi
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: anf-easytier-apk
+          path: |
+            easytier-gui/src-tauri/gen/android/app/build/outputs/apk/*/release/*.apk
+          if-no-files-found: error
