@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { type } from '@tauri-apps/plugin-os'
+import { useToast } from 'primevue'
 import { computed, onMounted, ref } from 'vue'
 import { useAnfFirstScreen } from '~/composables/anf_first_screen'
+import { anfStatusMeta } from '~/composables/anf_status'
 import { canOpenMemberWindow, toggleMemberWindow } from '~/composables/room_window'
 
 const {
@@ -27,6 +30,7 @@ const advancedOpen = ref(false)
 // Windows 且当前进程未以管理员身份运行时，首页展示提示（仅非管理员时显示）。
 const notAdmin = ref(false)
 const { t } = useI18n()
+const toast = useToast()
 
 onMounted(async () => {
   await init()
@@ -60,18 +64,20 @@ const runLabel = computed(() => {
   }
 })
 
-const statusText = computed(() => {
+const statusMeta = computed(() => anfStatusMeta(status.value))
+
+const heroSub = computed(() => {
   switch (status.value) {
-    case 'connecting':
-      return '连接中…'
     case 'pending':
       return '设备待审批，请联系管理员放行'
-    case 'connected':
-      return '已连接'
+    case 'connecting':
+      return '正在连接配置中心…'
     case 'failed':
-      return '连接失败'
+      return '连接未建立，请检查地址或网络后重试'
+    case 'connected':
+      return networkName.value ? `已加入网络：${networkName.value}` : '已加入中心网络'
     default:
-      return '未连接'
+      return '填写服务器地址后点击启动，即可一键入网'
   }
 })
 
@@ -86,6 +92,18 @@ function onSelectProfile(value: number) {
 
 function onRemoveCurrent() {
   removeProfile(activeIndex.value)
+}
+
+async function copyMachineId() {
+  if (!machineId.value)
+    return
+  try {
+    await writeText(machineId.value)
+    toast.add({ severity: 'success', summary: '已复制', detail: '机器码已复制到剪贴板', life: 1500 })
+  }
+  catch (e) {
+    toast.add({ severity: 'warn', summary: '复制失败', detail: e instanceof Error ? e.message : String(e), life: 2500 })
+  }
 }
 
 async function onToggleRun() {
@@ -107,91 +125,140 @@ async function onToggleRun() {
 </script>
 
 <template>
-  <div class="anf-card mx-auto my-6 flex w-full max-w-xl flex-col gap-4 rounded-xl border p-6 shadow-sm">
-    <div class="flex items-center gap-2">
-      <i class="pi pi-globe text-primary" />
-      <span class="text-lg font-semibold">ANF 快速连接</span>
-    </div>
-
-    <Message v-if="notAdmin" severity="warn" :closable="false" class="m-0">
-      {{ t('admin.hint') }}
-    </Message>
-
-    <Message v-if="errorMsg" severity="warn" :closable="true">
-      {{ errorMsg }}
-    </Message>
-
-    <div class="flex flex-col gap-1">
-      <label class="text-sm font-medium">连接配置（自动保存）</label>
-      <div class="flex items-center gap-2">
-        <Select
-          :model-value="activeIndex" :options="profileOptions" option-label="label" option-value="value"
-          class="flex-1" @update:model-value="onSelectProfile"
-        />
-        <Button size="small" icon="pi pi-plus" severity="secondary" label="新建" @click="addProfile" />
-        <Button
-          size="small" icon="pi pi-trash" severity="danger" text label="删除"
-          :disabled="profiles.length <= 1" @click="onRemoveCurrent"
-        />
+  <div class="anf-card overflow-hidden">
+    <!-- 状态 Hero -->
+    <div class="p-5 pb-0">
+      <div class="flex items-center gap-3 rounded-2xl p-4" :class="`anf-hero-${statusMeta.tone}`">
+        <div
+          class="anf-gradient flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-lg text-white"
+          :class="{ 'animate-pulse': statusMeta.pulse }"
+        >
+          <i :class="statusMeta.icon" />
+        </div>
+        <div class="min-w-0 flex-1">
+          <div class="text-base font-semibold">
+            {{ statusMeta.label }}
+          </div>
+          <div class="anf-muted truncate text-xs">
+            {{ heroSub }}
+          </div>
+        </div>
+        <Tag v-if="notAdmin" severity="warn" :value="t('admin.hint')" class="shrink-0" />
       </div>
-      <small class="text-secondary">可保存多套中心地址，切换会先保存当前项；机器码不变</small>
+      <Message v-if="errorMsg" severity="warn" :closable="true" class="mt-3 m-0">
+        {{ errorMsg }}
+      </Message>
     </div>
 
-    <div class="flex flex-col gap-1">
-      <label class="text-sm font-medium">服务器地址</label>
-      <InputText v-model="serverAddress" placeholder="例如 10.0.0.6:22020" />
-      <small class="text-secondary">填一个可访问的公网/局域网 IP + 端口（支持 tcp/udp/ws）</small>
-    </div>
+    <!-- 表单 -->
+    <div class="flex flex-col gap-4 p-5">
+      <div class="flex flex-col gap-1.5">
+        <label class="text-sm font-medium">连接配置（自动保存）</label>
+        <div class="flex items-center gap-2">
+          <Select
+            :model-value="activeIndex" :options="profileOptions" option-label="label" option-value="value"
+            class="flex-1" @update:model-value="onSelectProfile"
+          />
+          <Button size="small" icon="pi pi-plus" severity="secondary" label="新建" class="shrink-0" @click="addProfile" />
+          <Button
+            size="small" icon="pi pi-trash" severity="danger" text label="删除" class="shrink-0"
+            :disabled="profiles.length <= 1" @click="onRemoveCurrent"
+          />
+        </div>
+        <small class="anf-muted">可保存多套中心地址，切换会先保存当前项；机器码不变</small>
+      </div>
 
-    <div class="flex flex-col gap-1">
-      <label class="text-sm font-medium">设备昵称（自定义，可随时改）</label>
-      <InputText v-model="nickname" placeholder="例如：我办公室的电脑" />
-      <small class="text-secondary">会展示给同一网络内的其它成员</small>
-    </div>
+      <div class="flex flex-col gap-1.5">
+        <label class="text-sm font-medium">服务器地址</label>
+        <InputText v-model="serverAddress" placeholder="例如 10.0.0.6:22020" />
+        <small class="anf-muted">填一个可访问的公网/局域网 IP + 端口（支持 tcp/udp/ws）</small>
+      </div>
 
-    <div class="flex flex-col gap-1">
-      <label class="text-sm font-medium">机器码</label>
-      <InputText :model-value="machineId" readonly class="opacity-80" />
-      <small class="text-secondary">设备唯一标识，不可修改；管理员以此审核放行</small>
-    </div>
+      <div class="flex flex-col gap-1.5">
+        <label class="text-sm font-medium">设备昵称（自定义，可随时改）</label>
+        <InputText v-model="nickname" placeholder="例如：我办公室的电脑" />
+        <small class="anf-muted">会展示给同一网络内的其它成员</small>
+      </div>
 
-    <Button :label="runLabel" size="large" class="w-full h-12 text-base" @click="onToggleRun" />
+      <div class="flex flex-col gap-1.5">
+        <label class="text-sm font-medium">机器码</label>
+        <div class="flex items-center gap-2 rounded-lg border border-[color:var(--anf-border)] px-3 py-2">
+          <code class="min-w-0 flex-1 truncate text-xs opacity-80">{{ machineId }}</code>
+          <Button
+            icon="pi pi-copy" text size="small" aria-label="复制机器码"
+            class="shrink-0" @click="copyMachineId"
+          />
+        </div>
+        <small class="anf-muted">设备唯一标识，不可修改；管理员以此审核放行</small>
+      </div>
 
-    <div class="text-center text-sm text-secondary">
-      {{ statusText }}
-    </div>
-
-    <div class="border-t pt-3">
       <Button
-        text size="small" icon="pi pi-cog" label="高级" class="p-0"
-        @click="advancedOpen = !advancedOpen"
+        :label="runLabel" size="large"
+        class="anf-gradient h-12 w-full border-0 text-base text-white shadow-lg shadow-indigo-500/25 hover:opacity-95"
+        @click="onToggleRun"
       />
-      <div v-if="advancedOpen" class="mt-3 flex flex-col gap-3">
-        <div class="flex flex-col gap-1">
-          <label class="text-sm font-medium">网络名称</label>
-          <InputText :model-value="networkName || '待下发'" readonly placeholder="由中心下发" />
-          <small class="text-secondary">网络名由中心统一管理，客户端不可改（改了连不上中心）</small>
-          <small v-if="lastInstanceId" class="text-secondary">最近实例：{{ lastInstanceId }}</small>
+
+      <div class="border-t pt-3">
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <Button text size="small" icon="pi pi-cog" :label="advancedOpen ? '收起高级' : '高级'" class="p-0" @click="advancedOpen = !advancedOpen" />
+          <Button
+            text size="small" icon="pi pi-users" label="房间信息" class="p-0"
+            :disabled="!canOpenMemberWindow(status, lastInstanceId)"
+            @click="toggleMemberWindow(status, lastInstanceId)"
+          />
         </div>
-        <div class="flex flex-col gap-1 text-sm text-secondary">
-          <div>TUN 网卡名：anf_et（固定）</div>
-          <div>配置源：由服务器地址自动生成</div>
-          <div>网络密钥：中心下发，客户端不保存</div>
-        </div>
-        <div class="flex items-center gap-3">
-          <Button label="立即保存" size="small" icon="pi pi-save" class="w-fit" @click="persist()" />
-          <small class="text-secondary">更改会自动保存</small>
+        <div v-if="advancedOpen" class="mt-3 flex flex-col gap-3">
+          <div class="flex flex-col gap-1">
+            <label class="text-sm font-medium">网络名称</label>
+            <InputText :model-value="networkName || '待下发'" readonly placeholder="由中心下发" />
+            <small class="anf-muted">网络名由中心统一管理，客户端不可改（改了连不上中心）</small>
+            <small v-if="lastInstanceId" class="anf-muted">最近实例：{{ lastInstanceId }}</small>
+          </div>
+          <div class="anf-muted flex flex-col gap-1 text-sm">
+            <div>TUN 网卡名：anf_et（固定）</div>
+            <div>配置源：由服务器地址自动生成</div>
+            <div>网络密钥：中心下发，客户端不保存</div>
+          </div>
+          <div class="flex items-center gap-3">
+            <Button label="立即保存" size="small" icon="pi pi-save" class="w-fit" @click="persist()" />
+            <small class="anf-muted">更改会自动保存</small>
+          </div>
         </div>
       </div>
-    </div>
-
-    <div class="border-t pt-3">
-      <Button
-        text size="small" icon="pi pi-users" label="房间信息" class="p-0"
-        :disabled="!canOpenMemberWindow(status, lastInstanceId)"
-        @click="toggleMemberWindow(status, lastInstanceId)"
-      />
-      <small class="ml-2 text-secondary">打开成员列表独立窗口</small>
     </div>
   </div>
 </template>
+
+<style scoped lang="postcss">
+.anf-hero-neutral {
+  background: #eceef4;
+}
+.anf-hero-accent {
+  background: #eef2ff;
+}
+.anf-hero-warn {
+  background: #fff7e6;
+}
+.anf-hero-success {
+  background: #ecfdf5;
+}
+.anf-hero-danger {
+  background: #fef2f2;
+}
+
+.p-dark .anf-hero-neutral {
+  background: #22263a;
+}
+.p-dark .anf-hero-accent {
+  background: #1c2140;
+}
+.p-dark .anf-hero-warn {
+  background: #3a2f14;
+}
+.p-dark .anf-hero-success {
+  background: #123524;
+}
+.p-dark .anf-hero-danger {
+  background: #3b1a1e;
+}
+</style>
