@@ -29,7 +29,8 @@
       {
         "title": "ANF 平台架构",
         "width": 800,
-        "height": 600
+        "height": 720,
+        "center": true
       }
     ],
     "security": {
