@@ -1,19 +1,21 @@
-# ANFAGENT-30 CI（gitea actions）——骨架，runner 能力待确认
+# ANFAGENT-30 CI（gitea actions）——runner 已确认可用（gitea-runner-1）
 name: ci
 
 on:
   push:
     branches: [main, codex/*]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: https://github.com/actions/checkout@v4
       - name: 安装 Rust 工具链
-        uses: dtolnay/rust-toolchain@stable
+        uses: https://github.com/dtolnay/rust-toolchain@stable
         with:
+          toolchain: 1.95
           components: rustfmt, clippy
       - name: 格式检查
         run: cargo fmt --all --check
@@ -26,14 +28,16 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: https://github.com/actions/checkout@v4
       - name: 安装 Rust 工具链
-        uses: dtolnay/rust-toolchain@stable
+        uses: https://github.com/dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95
       - name: 构建 linux x86_64 二进制
         run: |
           cargo build --release -p easytier -p easytier-web
       - name: 上传产物
-        uses: actions/upload-artifact@v4
+        uses: https://github.com/actions/upload-artifact@v4
         with:
           name: anf-easytier-linux-x86_64
           path: |
