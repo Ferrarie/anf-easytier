@@ -36,6 +36,7 @@ easytier-panic.log
 __pycache__/
 
 # Android 签名密钥（不入库；CI 通过 ANDROID_KEYSTORE_* secrets 注入）
+android_key/
 easytier-gui/src-tauri/gen/android/app/upload-keystore.jks
 easytier-gui/src-tauri/gen/android/app/upload-keystore.p12
 easytier-gui/src-tauri/gen/android/keystore.properties
