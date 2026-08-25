@@ -238,11 +238,3 @@ jobs:
           path: |
             ./artifacts/*
 
-  gui-result:
-    runs-on: ubuntu-latest
-    needs: [ pre_job, build-gui ]
-    if: needs.pre_job.result == 'success' && needs.pre_job.outputs.should_skip != 'true' && !cancelled()
-    steps:
-      - name: Mark result as failed
-        if: contains(needs.*.result, 'failure')
-        run: exit 1
