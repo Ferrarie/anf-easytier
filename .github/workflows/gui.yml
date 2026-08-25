@@ -21,22 +21,6 @@ defaults:
     shell: bash
 
 jobs:
-  pre_job:
-    # continue-on-error: true # Uncomment once integration is finished
-    runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
-    # Map a step output to a job output
-    outputs:
-      should_skip: ${{ steps.skip_check.outputs.should_skip == 'true' && !startsWith(github.ref_name, 'releases/') }}
-    steps:
-      - id: skip_check
-        uses: fkirc/skip-duplicate-actions@v5
-        with:
-          # All of these options are optional, so you can remove them if you are happy with the defaults
-          concurrent_skipping: 'same_content_newer'
-          skip_after_successful_duplicate: 'true'
-          cancel_others: 'true'
-          paths: '["Cargo.toml", "Cargo.lock", "easytier/**", "easytier-core/**", "easytier-gui/**", ".github/workflows/gui.yml", ".github/actions/**", "easytier-web/frontend-lib/**"]'
   build-gui:
     strategy:
       fail-fast: true
@@ -82,8 +66,6 @@ jobs:
       OSS_BUCKET: ${{ secrets.ALIYUN_OSS_BUCKET }}
       # secrets 上下文不能用于 if 条件，先求值为 env 布尔值再引用
       APPLE_CERT_CONFIGURED: ${{ secrets.APPLE_CERTIFICATE != '' }}
-    needs: pre_job
-    if: needs.pre_job.outputs.should_skip != 'true'    
     steps:
       - uses: actions/checkout@v5
 
