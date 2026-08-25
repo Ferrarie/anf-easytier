@@ -44,16 +44,3 @@ jobs:
             target/release/anf-easytier-core
             target/release/easytier-web
 
-  # docker 镜像推送需要 runner 具备 docker 能力（待 VM/runner 就绪后确认）
-  # docker-push:
-  #   needs: build-linux
-  #   if: startsWith(github.ref, 'refs/tags/v')
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: 登录 gitea registry
-  #       run: echo "${{ secrets.REGISTRY_TOKEN }}" | docker login registry.example.com -u "${{ secrets.REGISTRY_USER }}" --password-stdin
-  #     - name: 构建并推送镜像
-  #       run: |
-  #         docker build -t registry.example.com/anidev/anf-easytier-web-embed:${{ github.ref_name }} .
-  #         docker push registry.example.com/anidev/anf-easytier-web-embed:${{ github.ref_name }}

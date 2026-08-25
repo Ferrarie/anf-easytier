@@ -81,6 +81,8 @@ android {
             storePassword = env("ANDROID_KEYSTORE_STORE_PASSWORD")
                 ?: keystoreProperties["storePassword"] as? String
                 ?: ""
+            // 新密钥由 keytool（JDK9+）生成，默认为 PKCS12 格式
+            storeType = "PKCS12"
         }
     }
     buildTypes {

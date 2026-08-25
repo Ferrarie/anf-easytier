@@ -9,7 +9,7 @@
 
 services:
   easytier-web:
-    image: ${WEB_IMAGE:-registry.example.com/anidev/anf-easytier-web-embed:v2.6.4-anf.0}
+    image: ${WEB_IMAGE:-}
     container_name: anf-easytier-web
     restart: unless-stopped
     ports:
@@ -23,7 +23,7 @@ services:
       - anf
 
   easytier-core:
-    image: ${CORE_IMAGE:-registry.example.com/anidev/anf-easytier-core:v2.6.4-anf.0}
+    image: ${CORE_IMAGE:-}
     container_name: anf-easytier-core
     restart: unless-stopped
     network_mode: host              # 需要 TUN/多 UDP 端口，用 host 网络
