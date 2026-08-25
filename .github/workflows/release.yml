@@ -1,96 +1,203 @@
 name: ANF EasyTier Release
 
 on:
+  push:
+    tags: [ 'v*' ]
   workflow_dispatch:
     inputs:
-      core_run_id:
-        description: 'The run id of EasyTier-Core Action in EasyTier repo'
-        type: number
-        required: true
-      gui_run_id:
-        description: 'The run id of EasyTier-GUI Action in EasyTier repo'
-        type: number
-        required: true
-      mobile_run_id:
-        description: 'The run id of EasyTier-Mobile Action in EasyTier repo'
-        type: number
-        required: true
       version:
-        description: 'Version for this release'
+        description: 'Release 版本号（tag），如 v1.0.0'
         type: string
         default: 'v1.0.0'
         required: true
+      core_run_id:
+        description: 'core.yml 的 run id（留空 = 自动取最近一次成功的 core.yml 运行）'
+        type: string
+        required: false
+      gui_run_id:
+        description: 'gui.yml 的 run id（留空 = 自动取最近一次成功的 gui.yml 运行）'
+        type: string
+        required: false
+      mobile_run_id:
+        description: 'mobile.yml 的 run id（留空 = 自动取最近一次成功的 mobile.yml 运行）'
+        type: string
+        required: false
+      draft:
+        description: '创建草稿（默认 false = 直接发布，Releases 页面立即可见）'
+        type: boolean
+        default: false
+        required: true
       make_latest:
-        description: 'Mark this release as latest'
+        description: '将本次 release 标记为 latest'
         type: boolean
         default: true
         required: true
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      # workflow_dispatch 用输入版本；推送 v* 标签时用标签名
+      VERSION: ${{ inputs.version || github.ref_name }}
     steps:
-      -
-        name: Checkout
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
 
-      - name: Download Core Artifact
-        uses: dawidd6/action-download-artifact@v11
-        with:
-          github_token: ${{secrets.GITHUB_TOKEN}}
-          run_id: ${{ inputs.core_run_id }}
-          repo: ${{ github.repository }}
-          path: release_assets
-
-      - name: Download GUI Artifact
-        uses: dawidd6/action-download-artifact@v11
-        with:
-          github_token: ${{secrets.GITHUB_TOKEN}}
-          run_id: ${{ inputs.gui_run_id }}
-          repo: ${{ github.repository }}
-          path: release_assets_nozip
-
-      - name: Download Mobile Artifact
-        uses: dawidd6/action-download-artifact@v11
-        with:
-          github_token: ${{secrets.GITHUB_TOKEN}}
-          run_id: ${{ inputs.mobile_run_id }}
-          repo: ${{ github.repository }}
-          path: release_assets_nozip
-
-      - name: Zip release assets
+      - name: Resolve run IDs (input or latest successful run)
+        id: runs
         env:
-          VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir zipped_assets
+          set -euo pipefail
 
-          find release_assets_nozip -type f -exec mv {} zipped_assets \;
-          ls -l -R ./zipped_assets
-
-          cd release_assets
-          ls -l -R ./
-          chmod -R 755 .
-          for x in `ls`; do
-            if [ "$x" = "Easytier-Magisk" ]; then
-              # for Easytier-Magisk, make sure files are in the root of the zip
-              cd $x;
-              zip -r ../../zipped_assets/$x-${VERSION}.zip .;
-              cd ..;
-            else
-              zip -r ../zipped_assets/$x-${VERSION}.zip $x;
+          resolve() {
+            local workflow="$1" input="$2"
+            if [[ -n "$input" ]]; then
+              echo "$input"
+              return
             fi
+            local id
+            id="$(gh run list --workflow "$workflow" --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty' || true)"
+            if [[ -z "$id" ]]; then
+              echo "::error::workflow ${workflow} 没有成功的运行记录，请在输入里提供 run_id" >&2
+              exit 1
+            fi
+            echo "$id"
+          }
+
+          CORE_ID="$(resolve core.yml "${{ inputs.core_run_id }}")"
+          GUI_ID="$(resolve gui.yml "${{ inputs.gui_run_id }}")"
+          MOBILE_ID="$(resolve mobile.yml "${{ inputs.mobile_run_id }}")"
+
+          echo "core_run_id=${CORE_ID}" >> "$GITHUB_OUTPUT"
+          echo "gui_run_id=${GUI_ID}" >> "$GITHUB_OUTPUT"
+          echo "mobile_run_id=${MOBILE_ID}" >> "$GITHUB_OUTPUT"
+
+          echo "Resolved runs: core=${CORE_ID} gui=${GUI_ID} mobile=${MOBILE_ID}"
+
+      - name: Download Core artifacts
+        uses: dawidd6/action-download-artifact@v11
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          run_id: ${{ steps.runs.outputs.core_run_id }}
+          repo: ${{ github.repository }}
+          path: core_assets
+
+      - name: Download GUI artifacts
+        uses: dawidd6/action-download-artifact@v11
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          run_id: ${{ steps.runs.outputs.gui_run_id }}
+          repo: ${{ github.repository }}
+          path: gui_assets
+
+      - name: Download Mobile artifacts
+        uses: dawidd6/action-download-artifact@v11
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          run_id: ${{ steps.runs.outputs.mobile_run_id }}
+          repo: ${{ github.repository }}
+          path: mobile_assets
+
+      - name: Validate artifacts
+        run: |
+          set -euo pipefail
+          for dir in core_assets gui_assets mobile_assets; do
+            if [[ ! -d "$dir" ]] || [[ -z "$(find "$dir" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+              echo "::error::${dir} 没有下载到任何产物，请检查 run_id 或对应工作流是否成功" >&2
+              exit 1
+            fi
+            echo "== ${dir} =="
+            find "$dir" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort
           done
 
-      - name: Release
+      - name: Zip release assets
+        run: |
+          set -euo pipefail
+          mkdir -p zipped_assets
+
+          for root in core_assets gui_assets mobile_assets; do
+            for d in "$root"/*/; do
+              [[ -d "$d" ]] || continue
+              name="$(basename "$d")"
+              # 中间产物（前端构建目录）不是发布物，跳过
+              [[ "$name" == "easytier-web-dashboard" ]] && continue
+              if [[ "$name" == "Easytier-Magisk" ]]; then
+                # Magisk 模块要求 zip 根目录直接是模块文件
+                (cd "$d" && zip -q -r "../../zipped_assets/${name}-${VERSION}.zip" .)
+              else
+                (cd "$root" && zip -q -r "../zipped_assets/${name}-${VERSION}.zip" "$name")
+              fi
+            done
+            # 兜底：散落在产物根目录的零散文件也一并收进发布
+            find "$root" -maxdepth 1 -type f -exec mv {} zipped_assets/ \;
+          done
+
+          if [[ -z "$(find zipped_assets -mindepth 1 -maxdepth 1 -type f -print -quit)" ]]; then
+            echo "::error::zipped_assets 为空，无法发布" >&2
+            exit 1
+          fi
+          ls -lh zipped_assets
+
+      - name: Generate checksums
+        run: |
+          set -euo pipefail
+          cd zipped_assets
+          find . -maxdepth 1 -type f ! -name 'SHA256SUMS-*' -print0 | sort -z | xargs -0 sha256sum > "SHA256SUMS-${VERSION}.txt"
+          cat "SHA256SUMS-${VERSION}.txt"
+
+      - name: Build release body
+        id: body
+        env:
+          CORE_ID: ${{ steps.runs.outputs.core_run_id }}
+          GUI_ID: ${{ steps.runs.outputs.gui_run_id }}
+          MOBILE_ID: ${{ steps.runs.outputs.mobile_run_id }}
+        run: |
+          set -euo pipefail
+
+          GUI_VERSION="$(node -p "require('./easytier-gui/package.json').version")"
+          CORE_VERSION="$(node -e "const fs=require('fs');const m=fs.readFileSync('easytier/Cargo.toml','utf8').match(/^version\s*=\s*\"([^\"]+)\"/m);process.stdout.write(m?m[1]:'unknown')")"
+          WEB_VERSION="$(node -e "const fs=require('fs');const m=fs.readFileSync('easytier-web/Cargo.toml','utf8').match(/^version\s*=\s*\"([^\"]+)\"/m);process.stdout.write(m?m[1]:'unknown')")"
+
+          BODY="## ANF EasyTier ${VERSION}
+
+          ### 组件版本
+          | 组件 | 版本 |
+          | --- | --- |
+          | GUI（anf-easytier 客户端） | ${GUI_VERSION} |
+          | Core（anf-easytier-core / anf-easytier-cli） | ${CORE_VERSION} |
+          | Web / 服务中心（easytier-web-embed） | ${WEB_VERSION} |
+
+          ### 构建来源
+          - core.yml run：${CORE_ID}
+          - gui.yml run：${GUI_ID}
+          - mobile.yml run：${MOBILE_ID}
+
+          ### 包含内容
+          - Android APK（aarch64 / armv7 / i686 / x86_64）
+          - Windows GUI 安装包（x86_64 / i686）
+          - macOS GUI（x86_64 / aarch64）
+          - Linux GUI（x86_64 / aarch64：deb / rpm / AppImage）
+          - 服务中心（服务端）：Linux（x86_64 / aarch64 / armv7hf / armhf）、macOS（x86_64 / aarch64）、Windows（x86_64）
+          - Easytier-Magisk 模块
+          - SHA256SUMS 校验文件"
+
+          echo "body<<ANF_BODY_EOF" >> "$GITHUB_OUTPUT"
+          echo "$BODY" >> "$GITHUB_OUTPUT"
+          echo "ANF_BODY_EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
+        # 非草稿（draft=false）才能设置 make_latest，且发布后 Releases 页面立即可见可下载
         uses: softprops/action-gh-release@v2
         with:
-          name: ${{ inputs.version }}
-          draft: true
-          make_latest: ${{ inputs.make_latest }}
+          name: ${{ env.VERSION }}
+          tag_name: ${{ env.VERSION }}
+          draft: ${{ inputs.draft == true }}
+          make_latest: ${{ inputs.draft != true && inputs.make_latest != false }}
+          body: ${{ steps.body.outputs.body }}
           files: |
-            ./zipped_assets/*
+            zipped_assets/*
           token: ${{ secrets.GITHUB_TOKEN }}
-          tag_name: ${{ inputs.version }}

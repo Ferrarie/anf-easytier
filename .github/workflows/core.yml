@@ -1,4 +1,4 @@
-name: EasyTier Core
+name: ANF EasyTier Core (Service Center)
 
 on:
   push:
@@ -38,12 +38,15 @@ jobs:
           name: easytier-web-dashboard
           path: |
             easytier-web/frontend/dist/*
+          if-no-files-found: error
+
   build:
     strategy:
       # 单一目标失败不应取消其他目标（尤其 x86_64/aarch64 主架构）
       fail-fast: false
       matrix:
         include:
+          # Linux 服务端（服务中心）
           - TARGET: x86_64-unknown-linux-musl
             OS: ubuntu-24.04
             ARTIFACT_NAME: linux-x86_64
@@ -57,11 +60,25 @@ jobs:
             OS: ubuntu-24.04
             ARTIFACT_NAME: linux-armhf
 
+          # macOS 服务端（服务中心）
+          - TARGET: x86_64-apple-darwin
+            OS: macos-latest
+            ARTIFACT_NAME: macos-x86_64
+          - TARGET: aarch64-apple-darwin
+            OS: macos-latest
+            ARTIFACT_NAME: macos-aarch64
+
+          # Windows 服务端（服务中心）
+          - TARGET: x86_64-pc-windows-msvc
+            OS: windows-latest
+            ARTIFACT_NAME: windows-x86_64
+
     runs-on: ${{ matrix.OS }}
     env:
       NAME: easytier
       TARGET: ${{ matrix.TARGET }}
       OS: ${{ matrix.OS }}
+      ARTIFACT_NAME: ${{ matrix.ARTIFACT_NAME }}
       OSS_BUCKET: ${{ secrets.ALIYUN_OSS_BUCKET }}
     needs:
       - build_web
@@ -107,7 +124,7 @@ jobs:
 
       - name: Build
         if: ${{ !contains(matrix.TARGET, 'mips') }}
-        run: |          
+        run: |
           if [[ "$TARGET" == *windows* ]]; then
             SUFFIX=.exe
           else
@@ -125,10 +142,10 @@ jobs:
           else
             FEATURES="jemalloc"
           fi
-          
+
           cargo $BUILD --release --target $TARGET --package=easytier-web --features=embed
           mv ./target/$TARGET/release/easytier-web"$SUFFIX" ./target/$TARGET/release/easytier-web-embed"$SUFFIX"
-          
+
           cargo $BUILD --release --target $TARGET --features=$FEATURES
 
       - name: Build (MIPS)
@@ -160,7 +177,7 @@ jobs:
           else
             TAG=$GITHUB_SHA
           fi
-          
+
           if [[ $OS =~ ^ubuntu.*$ && ! $TARGET =~ (loongarch|freebsd) ]]; then
             HOST_ARCH=$(uname -m)
             case $HOST_ARCH in
@@ -189,12 +206,151 @@ jobs:
           mv ./artifacts/objects/* ./artifacts/
           rm -rf ./artifacts/objects/
 
+      - name: Package service center
+        run: |
+          set -euo pipefail
+
+          case "$ARTIFACT_NAME" in
+            linux-*)   PKG_OS="linux" ;;
+            macos-*)   PKG_OS="macos" ;;
+            windows-*) PKG_OS="windows" ;;
+            *)         echo "::error::unknown ARTIFACT_NAME: $ARTIFACT_NAME" >&2; exit 1 ;;
+          esac
+
+          # README：说明组件、端口与启动方式（三平台通用）
+          cat > ./artifacts/README.txt <<'EOF'
+          ANF EasyTier 服务中心（Service Center）安装包
+          =============================================
+
+          本目录包含 ANF 中心（服务中心）所需的全部二进制：
+
+            anf-easytier-core      中心中继 / 兜底 peer（默认监听 tcp+udp :11010）
+            anf-easytier-cli       命令行管理工具（easytier 兼容）
+            easytier-web-embed     管理后台 REST API（:11211）+ 设备注册 config-server（udp :22020）+ 内嵌前端
+
+          启动方式（等价于 deploy/compose.anf.yaml 的编排）：
+
+            Windows：
+              powershell -ExecutionPolicy Bypass -File .\start-center.ps1
+
+            macOS / Linux：
+              chmod +x ./start-center.sh && ./start-center.sh
+
+          端口约定：
+            11211 TCP       管理后台 / REST API（建议仅内网可达）
+            22020 UDP       config-server（设备注册 / 配置下发，公网开放）
+            11010 TCP+UDP   中心中继（公网开放）
+
+          常用环境变量（start-*. 脚本读取，不设置时使用默认值）：
+            ANF_NETWORK_NAME        网络名（默认 anf-m3）
+            ANF_NETWORK_SECRET      网络密钥（默认 change-me，生产环境务必修改）
+            ANF_CENTER_PEER_URL     中心 core 地址（默认 tcp://127.0.0.1:11010）
+            ANF_API_PORT            管理后台端口（默认 11211）
+            ANF_CONFIG_SERVER_PORT  config-server 端口（默认 22020）
+            ANF_RELAY_PORT          中心中继端口（默认 11010）
+
+          数据目录：./data（SQLite 数据库 et.db），删除该目录等于重置中心。
+
+          首次使用：浏览器打开 http://127.0.0.1:11211，按 ANF_ADMIN_USER /
+          ANF_ADMIN_PASSWORD（见 .env.example）完成管理员引导，再签发邀请码并审批设备。
+          EOF
+
+          # 启动脚本（macOS / Linux）
+          cat > ./artifacts/start-center.sh <<'EOF'
+          #!/usr/bin/env bash
+          # ANF 服务中心启动脚本（macOS / Linux）
+          # 用法：chmod +x ./start-center.sh && ./start-center.sh
+          set -euo pipefail
+          cd "$(dirname "$0")"
+
+          API_PORT="${ANF_API_PORT:-11211}"
+          CONFIG_PORT="${ANF_CONFIG_SERVER_PORT:-22020}"
+          RELAY_PORT="${ANF_RELAY_PORT:-11010}"
+          NETWORK_NAME="${ANF_NETWORK_NAME:-anf-m3}"
+          NETWORK_SECRET="${ANF_NETWORK_SECRET:-}"
+          CENTER_PEER="${ANF_CENTER_PEER_URL:-tcp://127.0.0.1:${RELAY_PORT}}"
+
+          mkdir -p ./data
+
+          echo "[anf] starting easytier-web-embed (api :${API_PORT}, config-server udp :${CONFIG_PORT}) ..."
+          ./easytier-web-embed \
+            --db ./data/et.db \
+            --api-server-port "${API_PORT}" \
+            --config-server-port "${CONFIG_PORT}" \
+            --anf-network-name "${NETWORK_NAME}" \
+            ${NETWORK_SECRET:+--anf-network-secret "${NETWORK_SECRET}"} \
+            ${CENTER_PEER:+--anf-center-peer-url "${CENTER_PEER}"} &
+          WEB_PID=$!
+
+          echo "[anf] starting anf-easytier-core (relay tcp+udp :${RELAY_PORT}) ..."
+          ./anf-easytier-core \
+            --network-name "${NETWORK_NAME}" \
+            ${NETWORK_SECRET:+--network-secret "${NETWORK_SECRET}"} \
+            --listeners "tcp://0.0.0.0:${RELAY_PORT}" "udp://0.0.0.0:${RELAY_PORT}" &
+          CORE_PID=$!
+
+          trap 'kill "${WEB_PID}" "${CORE_PID}" 2>/dev/null || true' EXIT INT TERM
+          wait
+          EOF
+
+          if [[ "$PKG_OS" == "windows" ]]; then
+            # 启动脚本（Windows）
+            cat > ./artifacts/start-center.ps1 <<'EOF'
+          # ANF 服务中心启动脚本（Windows）
+          # 用法：powershell -ExecutionPolicy Bypass -File .\start-center.ps1
+          $ErrorActionPreference = 'Stop'
+          $root = Split-Path -Parent $MyInvocation.MyCommand.Path
+          Set-Location $root
+
+          $apiPort     = if ($env:ANF_API_PORT) { [int]$env:ANF_API_PORT } else { 11211 }
+          $configPort  = if ($env:ANF_CONFIG_SERVER_PORT) { [int]$env:ANF_CONFIG_SERVER_PORT } else { 22020 }
+          $relayPort   = if ($env:ANF_RELAY_PORT) { [int]$env:ANF_RELAY_PORT } else { 11010 }
+          $networkName = if ($env:ANF_NETWORK_NAME) { $env:ANF_NETWORK_NAME } else { 'anf-m3' }
+          $networkSecret = $env:ANF_NETWORK_SECRET
+          $centerPeer  = if ($env:ANF_CENTER_PEER_URL) { $env:ANF_CENTER_PEER_URL } else { "tcp://127.0.0.1:${relayPort}" }
+
+          New-Item -ItemType Directory -Force -Path (Join-Path $root 'data') | Out-Null
+
+          $webArgs = @(
+            '--db', (Join-Path $root 'data\et.db'),
+            '--api-server-port', "$apiPort",
+            '--config-server-port', "$configPort",
+            '--anf-network-name', $networkName
+          )
+          if ($networkSecret) { $webArgs += '--anf-network-secret', $networkSecret }
+          if ($centerPeer)    { $webArgs += '--anf-center-peer-url', $centerPeer }
+
+          $coreArgs = @(
+            '--network-name', $networkName,
+            '--listeners', "tcp://0.0.0.0:${relayPort}", "udp://0.0.0.0:${relayPort}"
+          )
+          if ($networkSecret) { $coreArgs += '--network-secret', $networkSecret }
+
+          Write-Host "[anf] starting easytier-web-embed (api :${apiPort}, config-server udp :${configPort}) ..."
+          $web = Start-Process -FilePath (Join-Path $root 'easytier-web-embed.exe') -ArgumentList $webArgs -PassThru -NoNewWindow
+          Write-Host "[anf] starting anf-easytier-core (relay tcp+udp :${relayPort}) ..."
+          $core = Start-Process -FilePath (Join-Path $root 'anf-easytier-core.exe') -ArgumentList $coreArgs -PassThru -NoNewWindow
+
+          Write-Host "Press Ctrl+C to stop..."
+          try {
+            Wait-Process -Id $web.Id, $core.Id
+          } finally {
+            Stop-Process -Id $web.Id, $core.Id -ErrorAction SilentlyContinue
+          }
+          EOF
+          else
+            chmod +x ./artifacts/start-center.sh
+          fi
+
+          ls -lh ./artifacts/
+
       - name: Archive artifact
         uses: actions/upload-artifact@v5
         with:
-          name: easytier-${{ matrix.ARTIFACT_NAME }}
+          name: anf-easytier-server-${{ matrix.ARTIFACT_NAME }}
           path: |
             ./artifacts/*
+          if-no-files-found: error
 
   build_magisk:
     runs-on: ubuntu-latest
@@ -207,7 +363,7 @@ jobs:
       - name: Download Linux aarch64 binaries
         uses: actions/download-artifact@v4
         with:
-          name: easytier-linux-aarch64
+          name: anf-easytier-server-linux-aarch64
           path: ./downloaded-binaries/  # 独立目录避免冲突
 
       # 将二进制文件复制到 Magisk 模块目录
@@ -228,4 +384,3 @@ jobs:
             !./easytier-contrib/easytier-magisk/build.sh
             !./easytier-contrib/easytier-magisk/magisk_update.json
           if-no-files-found: error
-

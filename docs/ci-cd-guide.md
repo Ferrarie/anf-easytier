@@ -9,11 +9,27 @@
 | --- | --- | --- |
 | Android APK（4 ABI） | `.github/workflows/mobile.yml` | `anf-easytier-mobile-android-{aarch64,armv7,i686,x86_64}` |
 | macOS GUI | `.github/workflows/gui.yml` | `anf-easytier-gui-macos-{x86_64,aarch64}`（DMG） |
-| Windows GUI | `.github/workflows/gui.yml` | `anf-easytier-gui-windows-{x86_64,i686,arm64}`（NSIS exe） |
-| Linux 服务端 | `.github/workflows/core.yml` | `anf-easytier-core/cli` + `easytier-web-embed`（x86_64/aarch64/armv7hf/armhf） |
-| 汇总发版 | `.github/workflows/release.yml` | 手动填写各 run id 后打 tag 发 draft release |
+| Windows GUI | `.github/workflows/gui.yml` | `anf-easytier-gui-windows-{x86_64,i686}`（NSIS exe） |
+| 服务端（服务中心）macOS / Windows / Linux | `.github/workflows/core.yml` | `anf-easytier-server-{linux,macos,windows}-*`（`anf-easytier-core/cli` + `easytier-web-embed` + README + 启动脚本；Windows 仅 x86_64） |
+| 汇总发版 | `.github/workflows/release.yml` | run id 可留空自动取最近成功运行；统一 zip + SHA256 校验；默认直接发布，Releases 页立即可见；描述含 GUI / Core 版本 |
 
 触发方式：push 到 `main/develop/releases/**`、PR、以及各工作流的 `workflow_dispatch`（手动）。
+
+### 1.1 如何触发 release（三步）
+
+1. 先确保 core.yml / gui.yml / mobile.yml 三个工作流各自有至少一次成功运行（push 或 `workflow_dispatch` 均可）。
+2. 打开 **Actions → ANF EasyTier Release → Run workflow**：填版本号（如 `v1.0.0`，tag 不存在会自动创建）；三个 run id 可留空（自动取各工作流最近一次成功运行），也可粘贴指定 run id 锁定产物。
+3. 运行完成后打开 **Releases** 页：`v1.0.0` 已直接发布，展开 Assets 即可点击下载各平台 zip 与 SHA256SUMS 校验文件；发布说明自动包含 GUI / Core / Web 版本与构建来源 run id。
+
+> 如需先审阅再发布，把 `draft` 输入改为 `true`（此时 `make_latest` 会被忽略，GitHub API 不允许草稿设为 latest）。
+
+**另一种触发方式（标签自动发版）**：CI 跑完后直接推送 `v*` 标签即可自动触发 release（无需手动填 run id）：
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+```
+
+release 会自动取 core/gui/mobile 各自最近一次成功运行的产物并发布；若某工作流从无成功记录，会在校验步骤明确报错。
 
 ## 2. 失败根因复盘（按阶段）
 
@@ -83,9 +99,10 @@
 7. **bindgen 类 crate**：GitHub hosted runner 无需处理；自托管 runner 需 `LIBCLANG_PATH` + `BINDGEN_EXTRA_CLANG_ARGS=--sysroot=<NDK sysroot>`。
 8. **machine-uid**：保持 `cfg(not(target_os = "android"))` 门控，Android 上回退随机/配置 ID。
 9. **不要用 `secrets` 写 `if`**：一律先转 env 布尔。
-10. **矩阵**：打包矩阵 `fail-fast: false`。
+10. **矩阵**：打包矩阵 `fail-fast: false`（core/gui 已改，mobile 仍为 true，可按需对齐）。
 11. **删冗余 job**：`pre_job`（skip-duplicate）与 `-result` 汇总 job 已全部移除；test.yml 若保留建议同步清理。
 12. **macOS 签名**：未配置 `APPLE_*` secrets 时自动出未签名 DMG；配置后自动签名 + notarize + staple。
+12b. **release 发布与 latest**：GitHub API 不允许 draft + `make_latest: true`；release.yml 默认 `draft: false` 直接发布（Releases 页立即可见），若选草稿则 `make_latest` 自动置为 false。
 13. **配额管理**：
     - 全量 GUI 一轮 ≈ 7 个 job × 40-60 分钟，mobile ≈ 4 × 15-25 分钟，一次全量约消耗 **400-500 分钟**；
     - 开发期用 `workflow_dispatch` 按需打包，或把 push 触发收敛到 `releases/**`；
@@ -96,10 +113,10 @@
 
 | 文件 | Job | 产物/作用 | 注意 |
 | --- | --- | --- | --- |
-| `gui.yml` | build-gui（7 平台矩阵） | NSIS exe / DMG / deb/rpm/AppImage | mac 无证书自动未签名 |
+| `gui.yml` | build-gui（6 平台矩阵，fail-fast: false） | NSIS exe / DMG / deb/rpm/AppImage | 无 windows-arm64；mac 无证书自动未签名；空产物直接报错 |
 | `mobile.yml` | build-mobile（4 ABI） | APK ×4 | 依赖 gen/android 已提交 |
-| `core.yml` | build_web / build（linux×4）/ build_magisk | 服务端二进制 + magisk 模块 | 产物名 `anf-easytier-core/cli` |
-| `release.yml` | release | draft release 汇总 | 手动填 core/gui/mobile run id + 版本 |
+| `core.yml` | build_web / build（linux×4 + macos×2 + windows×1）/ build_magisk | 服务端（服务中心）二进制包 + magisk 模块 | 产物名 `anf-easytier-server-*`，含 README 与 start-center 启动脚本 |
+| `release.yml` | release | 发布 release 汇总 | run id 留空自动取最近成功运行；统一 zip + SHA256 校验；默认直接发布并自动生成含 GUI/Core 版本的说明 |
 | `test.yml` | check / pre-test / test_matrix | fmt/clippy/单测 | 格式 gate 需先修上游代码 |
 | `docker.yml` / `nix.yml` / `ohos.yml` | — | 镜像 / nix / 鸿蒙 | 非本目标范围，按需维护 |
 

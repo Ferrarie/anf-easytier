@@ -23,7 +23,8 @@ defaults:
 jobs:
   build-gui:
     strategy:
-      fail-fast: true
+      # 单一目标失败不应取消其他目标（尤其主架构）
+      fail-fast: false
       matrix:
         include:
           - TARGET: x86_64-unknown-linux-musl
@@ -52,10 +53,6 @@ jobs:
             OS: windows-latest
             GUI_TARGET: i686-pc-windows-msvc
             ARTIFACT_NAME: windows-i686
-          - TARGET: aarch64-pc-windows-msvc
-            OS: windows-11-arm
-            GUI_TARGET: aarch64-pc-windows-msvc
-            ARTIFACT_NAME: windows-arm64
 
     runs-on: ${{ matrix.OS }}
     env:
@@ -219,4 +216,5 @@ jobs:
           name: anf-easytier-gui-${{ matrix.ARTIFACT_NAME }}
           path: |
             ./artifacts/*
+          if-no-files-found: error
 
