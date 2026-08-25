@@ -20,23 +20,6 @@ defaults:
     shell: bash
 
 jobs:
-  pre_job:
-    # continue-on-error: true # Uncomment once integration is finished
-    runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
-    # Map a step output to a job output
-    outputs:
-      # do not skip push on branch starts with releases/
-      should_skip: ${{ steps.skip_check.outputs.should_skip == 'true' && !startsWith(github.ref_name, 'releases/') }}
-    steps:
-      - id: skip_check
-        uses: fkirc/skip-duplicate-actions@v5
-        with:
-          # All of these options are optional, so you can remove them if you are happy with the defaults
-          concurrent_skipping: 'same_content_newer'
-          skip_after_successful_duplicate: 'true'
-          cancel_others: 'true'
-          paths: '["Cargo.toml", "Cargo.lock", "easytier/**", "easytier-core/**", "easytier-proto/**", ".github/workflows/core.yml", ".github/actions/**", "easytier-web/**"]'
   build_web:
     runs-on: ubuntu-latest
     needs: pre_job
@@ -58,7 +41,8 @@ jobs:
             easytier-web/frontend/dist/*
   build:
     strategy:
-      fail-fast: true
+      # 单一目标失败不应取消其他目标（尤其 x86_64/aarch64 主架构）
+      fail-fast: false
       matrix:
         include:
           - TARGET: x86_64-unknown-linux-musl
@@ -67,55 +51,12 @@ jobs:
           - TARGET: aarch64-unknown-linux-musl
             OS: ubuntu-24.04-arm
             ARTIFACT_NAME: linux-aarch64
-
-          - TARGET: riscv64gc-unknown-linux-musl
-            OS: ubuntu-24.04
-            ARTIFACT_NAME: linux-riscv64
-          - TARGET: loongarch64-unknown-linux-musl
-            OS: ubuntu-24.04
-            ARTIFACT_NAME: linux-loongarch64
-
           - TARGET: armv7-unknown-linux-musleabihf # raspberry pi 2-3-4, not tested
             OS: ubuntu-24.04
             ARTIFACT_NAME: linux-armv7hf
-          - TARGET: armv7-unknown-linux-musleabi # raspberry pi 2-3-4, not tested
-            OS: ubuntu-24.04
-            ARTIFACT_NAME: linux-armv7
           - TARGET: arm-unknown-linux-musleabihf # raspberry pi 0-1, not tested
             OS: ubuntu-24.04
             ARTIFACT_NAME: linux-armhf
-          - TARGET: arm-unknown-linux-musleabi # raspberry pi 0-1, not tested
-            OS: ubuntu-24.04
-            ARTIFACT_NAME: linux-arm
-
-          - TARGET: mips-unknown-linux-musl
-            OS: ubuntu-24.04
-            ARTIFACT_NAME: linux-mips
-          - TARGET: mipsel-unknown-linux-musl
-            OS: ubuntu-24.04
-            ARTIFACT_NAME: linux-mipsel
-
-          - TARGET: x86_64-unknown-freebsd
-            OS: ubuntu-24.04
-            ARTIFACT_NAME: freebsd-13.2-x86_64
-            BSD_VERSION: 13.2
-
-          - TARGET: x86_64-apple-darwin
-            OS: macos-latest
-            ARTIFACT_NAME: macos-x86_64
-          - TARGET: aarch64-apple-darwin
-            OS: macos-latest
-            ARTIFACT_NAME: macos-aarch64
-
-          - TARGET: x86_64-pc-windows-msvc
-            OS: windows-latest
-            ARTIFACT_NAME: windows-x86_64
-          - TARGET: i686-pc-windows-msvc
-            OS: windows-latest
-            ARTIFACT_NAME: windows-i686
-          - TARGET: aarch64-pc-windows-msvc
-            OS: windows-11-arm
-            ARTIFACT_NAME: windows-arm64
 
     runs-on: ${{ matrix.OS }}
     env:
@@ -124,9 +65,7 @@ jobs:
       OS: ${{ matrix.OS }}
       OSS_BUCKET: ${{ secrets.ALIYUN_OSS_BUCKET }}
     needs:
-      - pre_job
       - build_web
-    if: needs.pre_job.outputs.should_skip != 'true'
     steps:
       - uses: actions/checkout@v5
 
@@ -238,7 +177,7 @@ jobs:
             UPX_BIN=./upx
           fi
 
-          for BIN in ./target/$TARGET/release/easytier-{core,cli,web,web-embed}"$SUFFIX"; do
+          for BIN in ./target/$TARGET/release/{anf-easytier-core,anf-easytier-cli,easytier-core,easytier-cli,easytier-web,easytier-web-embed}"$SUFFIX"; do
             if [[ -f "$BIN" ]]; then
               if [[ -n "$UPX_BIN" ]]; then
                 $UPX_BIN --lzma --best "$BIN" || true
@@ -260,8 +199,7 @@ jobs:
 
   build_magisk:
     runs-on: ubuntu-latest
-    needs: [ pre_job, build_web, build ]
-    if: needs.pre_job.result == 'success' && needs.pre_job.outputs.should_skip != 'true' && !cancelled()
+    needs: [ build_web, build ]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v5  # 必须先检出代码才能获取模块配置
@@ -277,8 +215,8 @@ jobs:
       - name: Prepare binaries
         run: |
           mkdir -p ./easytier-contrib/easytier-magisk/
-          cp ./downloaded-binaries/easytier-core ./easytier-contrib/easytier-magisk/
-          cp ./downloaded-binaries/easytier-cli ./easytier-contrib/easytier-magisk/
+          cp ./downloaded-binaries/anf-easytier-core ./easytier-contrib/easytier-magisk/easytier-core
+          cp ./downloaded-binaries/anf-easytier-cli ./easytier-contrib/easytier-magisk/easytier-cli
           cp ./downloaded-binaries/easytier-web ./easytier-contrib/easytier-magisk/
 
       # 上传生成的模块
@@ -292,11 +230,3 @@ jobs:
             !./easytier-contrib/easytier-magisk/magisk_update.json
           if-no-files-found: error
 
-  core-result:
-    runs-on: ubuntu-latest
-    needs: [ pre_job, build_web, build, build_magisk ]
-    if: needs.pre_job.result == 'success' && needs.pre_job.outputs.should_skip != 'true' && !cancelled()
-    steps:
-      - name: Mark result as failed
-        if: contains(needs.*.result, 'failure')
-        run: exit 1
