@@ -241,23 +241,32 @@ pub fn get_or_create_machine_id(cfg: &mut AppConfig) -> String {
 
 /// 基于系统硬件标识确定性计算机器码 UUID。
 fn hardware_machine_id() -> Option<uuid::Uuid> {
-    let uid = machine_uid::get().ok()?;
-    let uid = uid.trim();
-    if uid.is_empty() {
-        return None;
+    // Android 无 machine-uid 实现（crate 未覆盖 target_os="android"），回退到配置/随机 ID
+    #[cfg(target_os = "android")]
+    {
+        None
     }
-    let seed = format!("anf-easytier\nmachine_uid={uid}");
-    // Linux 额外并入网卡 MAC（Windows/macOS 的 machine_uid 已是硬件指纹）。
-    #[cfg(target_os = "linux")]
-    let seed = {
-        let macs = collect_linux_mac_addresses();
-        if macs.is_empty() {
-            seed
-        } else {
-            format!("{seed}\nmacs={}", macs.join(","))
+
+    #[cfg(not(target_os = "android"))]
+    {
+        let uid = machine_uid::get().ok()?;
+        let uid = uid.trim();
+        if uid.is_empty() {
+            return None;
         }
-    };
-    Some(uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, seed.as_bytes()))
+        let seed = format!("anf-easytier\nmachine_uid={uid}");
+        // Linux 额外并入网卡 MAC（Windows/macOS 的 machine_uid 已是硬件指纹）。
+        #[cfg(target_os = "linux")]
+        let seed = {
+            let macs = collect_linux_mac_addresses();
+            if macs.is_empty() {
+                seed
+            } else {
+                format!("{seed}\nmacs={}", macs.join(","))
+            }
+        };
+        Some(uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, seed.as_bytes()))
+    }
 }
 
 #[cfg(target_os = "linux")]
