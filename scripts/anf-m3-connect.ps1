@@ -5,12 +5,21 @@
 # NOTE: the config-server pushes a managed config that creates a WinTun adapter. To reach a RUNNING instance,
 #       run under Administrator and install Npcap; otherwise the instance logs a WinTun access-denied error.
 param(
-    [string]$WebBase = 'http://10.0.0.6:11211',
-    [string]$ConfigServer = 'udp://10.0.0.6:22020/admin',
+    [string]$WebBase = '',
+    [string]$ConfigServer = '',
     [string]$CoreBin = 'D:\Project\anf-easytier\target\release\anf-easytier-core.exe',
-    [string]$NetworkName = 'anf-m3'
+    [string]$NetworkName = '',
+    [string]$AdminUser = '',
+    [string]$AdminPassword = ''
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot '_anf_env.ps1')
+if (-not $WebBase) { $WebBase = $env:ANF_WEB_BASE ?? 'http://127.0.0.1:11211' }
+if (-not $ConfigServer) { $ConfigServer = $env:ANF_CONFIG_SERVER ?? 'udp://127.0.0.1:22020/admin' }
+if (-not $NetworkName) { $NetworkName = $env:ANF_NETWORK_NAME ?? 'anf-m3' }
+if (-not $AdminUser) { $AdminUser = $env:ANF_ADMIN_USER ?? 'admin' }
+if (-not $AdminPassword) { $AdminPassword = $env:ANF_ADMIN_PASSWORD ?? '' }
+if (-not $AdminPassword) { throw '请在仓库根 .env 设置 ANF_ADMIN_PASSWORD（参考 .env.example）' }
 $Tmp = Join-Path $env:TEMP ('anf-m3-conn-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $Tmp | Out-Null
 $CookieFile = Join-Path $Tmp 'cookies.txt'
@@ -41,7 +50,7 @@ $Ts = Get-Date -Format 'HHmmss'
 $NetSuffix = Get-Random -Minimum 2 -Maximum 254
 
 Write-Host '== 1. admin login'
-$LoginResp = Invoke-AnfApi -Method POST -Path '/api/v1/auth/login' -Auth -Body ('{"username":"admin","password":"' + (Get-Md5Hex 'admin') + '"}')
+$LoginResp = Invoke-AnfApi -Method POST -Path '/api/v1/auth/login' -Auth -Body ('{"username":"' + $AdminUser + '","password":"' + (Get-Md5Hex $AdminPassword) + '"}')
 Write-Host "    login: $LoginResp"
 
 Write-Host '== 2. create invite'

@@ -3,9 +3,19 @@
 # 前提：docker compose -f deploy/compose.anf.yaml up -d 已就绪；本脚本在 VM 上以 root 运行
 set -uo pipefail
 
-WEB="${WEB:-http://10.0.0.6:11211}"
-CONFIG_SERVER="${CONFIG_SERVER:-udp://10.0.0.6:22020/admin}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPT_DIR/_anf_env.sh"
+
+WEB="${WEB:-${ANF_WEB_BASE:-http://127.0.0.1:11211}}"
+CONFIG_SERVER="${CONFIG_SERVER:-${ANF_CONFIG_SERVER:-udp://127.0.0.1:22020/admin}}"
 CORE_BIN="${CORE_BIN:-/home/anf-et/anf-easytier/target/release/anf-easytier-core}"
+ADMIN_USER="${ANF_ADMIN_USER:-admin}"
+ADMIN_PASSWORD="${ANF_ADMIN_PASSWORD:-}"
+if [ -z "$ADMIN_PASSWORD" ]; then
+  echo "缺少配置：请在仓库根 .env 设置 ANF_ADMIN_PASSWORD（参考 .env.example）" >&2
+  exit 1
+fi
+ADMIN_MD5="$(printf %s "$ADMIN_PASSWORD" | md5sum | awk '{print $1}')"
 TMP="$(mktemp -d)"
 CJ="$TMP/cookies.txt"
 
@@ -18,10 +28,10 @@ for i in $(seq 1 30); do
   sleep 2
 done
 
-echo "== 2. 管理员登录（默认 admin/admin，前端 MD5） =="
+echo "== 2. 管理员登录（账号/密码来自根 .env，前端 MD5） =="
 LOGIN_RESP="$(curl -s -c "$CJ" -b "$CJ" -X POST "$WEB/api/v1/auth/login" \
   -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"00000000000000000000000000000000"}')"
+  -d "{\"username\":\"$ADMIN_USER\",\"password\":\"$ADMIN_MD5\"}")"
 echo "login: $LOGIN_RESP"
 
 echo "== 3. 创建邀请码 =="

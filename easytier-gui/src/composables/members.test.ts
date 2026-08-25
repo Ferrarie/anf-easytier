@@ -44,7 +44,7 @@ describe('normalizeMembers', () => {
           conns: [{
             stats: { latency_us: 23000, rx_bytes: 100, tx_bytes: 200 },
             loss_rate: 0.0,
-            tunnel: { tunnel_type: 'tcp', remote_addr: { url: 'tcp://203.0.113.33:10791' } },
+            tunnel: { tunnel_type: 'tcp', remote_addr: { url: 'tcp://203.0.113.1:10791' } },
           }],
           directly_connected_conns: ['x'],
         },
@@ -61,7 +61,7 @@ describe('normalizeMembers', () => {
     expect(rows[1].ipv4).toBe('10.200.126.1')
     expect(rows[1].lat_ms).toBe(23)
     expect(rows[1].tunnel_proto).toBe('tcp')
-    expect(rows[1].connections_addrs[0]).toBe('tcp://203.0.113.33:10791')
+    expect(rows[1].connections_addrs[0]).toBe('tcp://203.0.113.1:10791')
     expect(rows[2].cost).toBe('relay')
   })
 

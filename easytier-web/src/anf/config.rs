@@ -288,7 +288,7 @@ mod tests {
         AnfConfigTemplate::new(
             "anf-m3",
             Some("test-secret".to_string()),
-            Some("tcp://10.0.0.6:11110".to_string()),
+            Some("tcp://127.0.0.1:11110".to_string()),
         )
     }
 
@@ -345,7 +345,7 @@ mod tests {
             );
             assert_eq!(
                 parsed.peer_urls,
-                vec!["tcp://10.0.0.6:11110".to_string()]
+                vec!["tcp://127.0.0.1:11110".to_string()]
             );
             assert_eq!(parsed.hostname.as_deref(), Some(&machine_id.to_string()[..8]));
             assert!(parsed.virtual_ipv4.is_some(), "应分配虚拟 IP");

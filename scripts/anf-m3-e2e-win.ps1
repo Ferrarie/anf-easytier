@@ -19,15 +19,25 @@ ANFAGENT-30 M3 Windows 控制面端到端冒烟（免安装客户端版）
 #>
 
 param(
-    [string]$WebBase = 'http://10.0.0.6:11211',
-    [string]$ConfigServer = 'udp://10.0.0.6:22020/admin',
-    [string]$BindIp = '10.0.0.3',
+    [string]$WebBase = '',
+    [string]$ConfigServer = '',
+    [string]$BindIp = '',
     [string]$CoreBin = 'D:\Project\anf-easytier\target\release\anf-easytier-core.exe',
-    [string]$NetworkName = 'anf-m3',
+    [string]$NetworkName = '',
+    [string]$AdminUser = '',
+    [string]$AdminPassword = '',
     [switch]$Elevate
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot '_anf_env.ps1')
+if (-not $WebBase) { $WebBase = $env:ANF_WEB_BASE ?? 'http://127.0.0.1:11211' }
+if (-not $ConfigServer) { $ConfigServer = $env:ANF_CONFIG_SERVER ?? 'udp://127.0.0.1:22020/admin' }
+if (-not $BindIp) { $BindIp = $env:ANF_VM_SSH_BIND ?? '' }
+if (-not $NetworkName) { $NetworkName = $env:ANF_NETWORK_NAME ?? 'anf-m3' }
+if (-not $AdminUser) { $AdminUser = $env:ANF_ADMIN_USER ?? 'admin' }
+if (-not $AdminPassword) { $AdminPassword = $env:ANF_ADMIN_PASSWORD ?? '' }
+if (-not $AdminPassword) { throw '请在仓库根 .env 设置 ANF_ADMIN_PASSWORD（参考 .env.example）' }
 $Tmp = Join-Path $env:TEMP ('anf-m3-win-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $Tmp | Out-Null
 $CookieFile = Join-Path $Tmp 'cookies.txt'
@@ -41,7 +51,8 @@ function Invoke-AnfApi {
         [switch]$Auth
     )
     $url = "$WebBase$Path"
-    $curlArgs = @('--interface', $BindIp, '-sS', '--noproxy', '*', '-X', $Method, $url, '-H', 'Content-Type: application/json')
+    $curlArgs = @('-sS', '--noproxy', '*', '-X', $Method, $url, '-H', 'Content-Type: application/json')
+    if ($BindIp) { $curlArgs = @('--interface', $BindIp) + $curlArgs }
     if ($Auth) { $curlArgs += @('-c', $CookieFile, '-b', $CookieFile) }
     if ($Body) {
         # 避免 PowerShell 5.1 原生参数传递剥掉 JSON 内嵌引号：body 走临时文件
@@ -65,9 +76,9 @@ $DeviceMachine = [guid]::NewGuid().ToString()
 $Ts = Get-Date -Format 'HHmmss'
 $NetSuffix = Get-Random -Minimum 2 -Maximum 254
 
-# 1. 管理员登录（默认账号 admin/admin，密码先 MD5）
+# 1. 管理员登录（账号/密码来自根 .env：ANF_ADMIN_USER / ANF_ADMIN_PASSWORD，密码先 MD5）
 Write-Host '== 1. 管理员登录'
-$LoginResp = Invoke-AnfApi -Method POST -Path '/api/v1/auth/login' -Auth -Body ('{"username":"admin","password":"' + (Get-Md5Hex 'admin') + '"}')
+$LoginResp = Invoke-AnfApi -Method POST -Path '/api/v1/auth/login' -Auth -Body ('{"username":"' + $AdminUser + '","password":"' + (Get-Md5Hex $AdminPassword) + '"}')
 Write-Host "    login: $LoginResp"
 if (-not $LoginResp -or $LoginResp -match '"error"|401|Unauthorized') { throw "管理员登录失败：$LoginResp" }
 

@@ -404,7 +404,7 @@ mod tests {
         cfg.profiles = vec![
             AnfProfile {
                 name: Some("中心A".to_string()),
-                server_address: Some("udp://10.0.0.6:22020/admin".to_string()),
+            server_address: Some("udp://127.0.0.1:22020/admin".to_string()),
                 nickname: Some("办公室".to_string()),
                 network_name: Some("anf-m3".to_string()),
                 last_instance_id: Some("i1".to_string()),
@@ -445,7 +445,7 @@ mod tests {
         let v1 = r#"schema_version = 1
 machine_id = "9f0fd0bf-2ff8-58aa-9b0b-9dd5840165bc"
 invite_status = "pending"
-server_address = "udp://10.0.0.6:22020/admin"
+server_address = "udp://127.0.0.1:22020/admin"
 nickname = "办公室电脑"
 network_name = "anf-m3"
 last_instance_id = "i-abc"
@@ -458,7 +458,7 @@ last_instance_id = "i-abc"
         assert_eq!(cfg.profiles.len(), 1);
         assert_eq!(
             cfg.profiles[0].server_address.as_deref(),
-            Some("udp://10.0.0.6:22020/admin")
+            Some("udp://127.0.0.1:22020/admin")
         );
         assert_eq!(cfg.profiles[0].nickname.as_deref(), Some("办公室电脑"));
         assert_eq!(cfg.profiles[0].network_name.as_deref(), Some("anf-m3"));
@@ -515,8 +515,8 @@ last_instance_id = "i-abc"
     #[test]
     fn normalize_address_defaults_missing_scheme_to_config_server() {
         assert_eq!(
-            normalize_address("10.0.0.6:22020").unwrap(),
-            "udp://10.0.0.6:22020/admin"
+            normalize_address("127.0.0.1:22020").unwrap(),
+            "udp://127.0.0.1:22020/admin"
         );
         assert_eq!(
             normalize_address("example.com:8080").unwrap(),

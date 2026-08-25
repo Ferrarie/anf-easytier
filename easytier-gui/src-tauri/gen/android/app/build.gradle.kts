@@ -57,16 +57,30 @@ android {
     }
     signingConfigs {
         create("release") {
+            // 签名凭据优先取环境变量（CI Secrets），避免依赖入库文件。
+            // 环境变量：ANDROID_KEYSTORE_STORE_FILE / ANDROID_KEYSTORE_STORE_PASSWORD /
+            //           ANDROID_KEYSTORE_KEY_ALIAS / ANDROID_KEYSTORE_KEY_PASSWORD
             val keystorePropertiesFile = rootProject.file("keystore.properties")
             val keystoreProperties = Properties()
             if (keystorePropertiesFile.exists()) {
                 keystoreProperties.load(FileInputStream(keystorePropertiesFile))
             }
+            fun env(name: String) = System.getenv(name)
 
-            keyAlias = keystoreProperties["keyAlias"] as String
-            keyPassword = keystoreProperties["keyPassword"] as String
-            storeFile = file(keystoreProperties["storeFile"] as String)
-            storePassword = keystoreProperties["storePassword"] as String
+            keyAlias = env("ANDROID_KEYSTORE_KEY_ALIAS")
+                ?: keystoreProperties["keyAlias"] as? String
+                ?: "upload"
+            keyPassword = env("ANDROID_KEYSTORE_KEY_PASSWORD")
+                ?: keystoreProperties["keyPassword"] as? String
+                ?: ""
+            storeFile = file(
+                env("ANDROID_KEYSTORE_STORE_FILE")
+                    ?: keystoreProperties["storeFile"] as? String
+                    ?: "upload-keystore.jks"
+            )
+            storePassword = env("ANDROID_KEYSTORE_STORE_PASSWORD")
+                ?: keystoreProperties["storePassword"] as? String
+                ?: ""
         }
     }
     buildTypes {

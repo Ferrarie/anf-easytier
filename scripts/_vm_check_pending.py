@@ -1,11 +1,16 @@
 import urllib.request, hashlib, http.cookiejar, json
 
-BASE = 'http://127.0.0.1:11211'
+from _anf_env import load_env
+
+ENV = load_env()
+BASE = ENV.get('ANF_WEB_BASE') or 'http://127.0.0.1:11211'
+ADMIN_USER = ENV.get('ANF_ADMIN_USER') or 'admin'
+ADMIN_PASSWORD = ENV.get('ANF_ADMIN_PASSWORD') or 'admin'
 cj = http.cookiejar.CookieJar()
 opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
-md5 = hashlib.md5(b'admin').hexdigest()
+md5 = hashlib.md5(ADMIN_PASSWORD.encode()).hexdigest()
 
-data = ('{"username":"admin","password":"' + md5 + '"}').encode()
+data = ('{"username":"' + ADMIN_USER + '","password":"' + md5 + '"}').encode()
 req = urllib.request.Request(BASE + '/api/v1/auth/login', data=data,
                              headers={'Content-Type': 'application/json'})
 opener.open(req)

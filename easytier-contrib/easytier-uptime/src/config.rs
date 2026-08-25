@@ -131,9 +131,12 @@ impl AppConfig {
             enable_compression: env::var("ENABLE_COMPRESSION")
                 .map(|s| s.parse().unwrap_or(true))
                 .unwrap_or(true),
-            secret_key: env::var("SECRET_KEY").unwrap_or_else(|_| "default-secret-key".to_string()),
-            jwt_secret: env::var("JWT_SECRET").unwrap_or_else(|_| "default-jwt-secret".to_string()),
-            admin_password: env::var("ADMIN_PASSWORD").unwrap_or_else(|_| "admin123".to_string()),
+            secret_key: env::var("SECRET_KEY")
+                .unwrap_or_else(|_| Self::secret_or_dev_default("SECRET_KEY", "default-secret-key")),
+            jwt_secret: env::var("JWT_SECRET")
+                .unwrap_or_else(|_| Self::secret_or_dev_default("JWT_SECRET", "default-jwt-secret")),
+            admin_password: env::var("ADMIN_PASSWORD")
+                .unwrap_or_else(|_| Self::secret_or_dev_default("ADMIN_PASSWORD", "admin123")),
         };
 
         Ok(AppConfig {
@@ -144,6 +147,14 @@ impl AppConfig {
             cors: cors_config,
             security: security_config,
         })
+    }
+
+    /// 生产环境（NODE_ENV=production）禁止使用内置默认密钥/口令；开发环境沿用占位值。
+    fn secret_or_dev_default(name: &str, dev_default: &str) -> String {
+        if env::var("NODE_ENV").unwrap_or_default() == "production" {
+            panic!("生产环境必须设置环境变量 {name}（参考 easytier-uptime/.env.production）");
+        }
+        dev_default.to_string()
     }
 
     pub fn default_config() -> Self {

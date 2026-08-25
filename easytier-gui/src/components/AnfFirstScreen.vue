@@ -170,7 +170,7 @@ async function onToggleRun() {
 
       <div class="flex flex-col gap-1.5">
         <label class="text-sm font-medium">服务器地址</label>
-        <InputText v-model="serverAddress" placeholder="例如 10.0.0.6:22020" />
+        <InputText v-model="serverAddress" placeholder="例如 1.2.3.4:22020" />
         <small class="anf-muted">填一个可访问的公网/局域网 IP + 端口（支持 tcp/udp/ws）</small>
       </div>
 

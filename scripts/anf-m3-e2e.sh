@@ -3,11 +3,22 @@
 # 前提：easytier-web（embed）已运行在 API 11211 / config server 22020；et.db 已初始化
 set -euo pipefail
 
-WEB="${WEB:-http://10.0.0.6:11211}"
-CONFIG_SERVER="${CONFIG_SERVER:-udp://10.0.0.6:22020/admin}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPT_DIR/_anf_env.sh"
+
+WEB="${WEB:-${ANF_WEB_BASE:-http://127.0.0.1:11211}}"
+CONFIG_SERVER="${CONFIG_SERVER:-${ANF_CONFIG_SERVER:-udp://127.0.0.1:22020/admin}}"
 DB="${DB:-/tmp/anf-m3.db}"
 WEB_BIN="${WEB_BIN:-/home/anf-et/anf-easytier/target/debug/easytier-web}"
 CORE_BIN="${CORE_BIN:-/opt/easytier/easytier-core}"
+NETWORK_NAME="${ANF_NETWORK_NAME:-anf-m3}"
+ADMIN_USER="${ANF_ADMIN_USER:-admin}"
+ADMIN_PASSWORD="${ANF_ADMIN_PASSWORD:-}"
+if [ -z "$ADMIN_PASSWORD" ]; then
+  echo "缺少配置：请在仓库根 .env 设置 ANF_ADMIN_PASSWORD（参考 .env.example）" >&2
+  exit 1
+fi
+ADMIN_MD5="$(printf %s "$ADMIN_PASSWORD" | md5sum | awk '{print $1}')"
 TMP="$(mktemp -d)"
 CJ="$TMP/cookies.txt"
 
@@ -16,13 +27,17 @@ DEVICE_MACHINE="$(cat /proc/sys/kernel/random/uuid)"
 
 echo "== 1. 初始化 DB 并绑定管理员设备 =="
 rm -f "$DB"
-"$WEB_BIN" --db "$DB" admin-bind --machine-id "$ADMIN_MACHINE" --username admin --create-user-password admin123
+"$WEB_BIN" --db "$DB" admin-bind --machine-id "$ADMIN_MACHINE" --username "$ADMIN_USER" --create-user-password "$ADMIN_PASSWORD"
 
 echo "== 2. 启动 easytier-web（embed） =="
+ANF_PEER_ARG=()
+if [ -n "${ANF_CENTER_PEER_URL:-}" ]; then
+  ANF_PEER_ARG=(--anf-center-peer-url "$ANF_CENTER_PEER_URL")
+fi
 "$WEB_BIN" --db "$DB" --config-server-port 22020 --api-server-port 11211 \
-  --anf-network-name "${ANF_NETWORK_NAME:-anf-m3}" \
+  --anf-network-name "$NETWORK_NAME" \
   --anf-network-secret "${ANF_NETWORK_SECRET:-}" \
-  --anf-center-peer-url "${ANF_CENTER_PEER_URL:-tcp://10.0.0.6:11110}" \
+  "${ANF_PEER_ARG[@]}" \
   >"$TMP/web.log" 2>&1 &
 WEB_PID=$!
 trap 'kill $WEB_PID 2>/dev/null || true; rm -rf "$TMP"' EXIT
@@ -31,7 +46,7 @@ sleep 2
 echo "== 3. 管理员登录 =="
 LOGIN_RESP="$(curl -s -c "$CJ" -b "$CJ" -X POST "$WEB/api/v1/auth/login" \
   -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"00000000000000000000000000000000"}')"
+  -d "{\"username\":\"$ADMIN_USER\",\"password\":\"$ADMIN_MD5\"}")"
 echo "login: $LOGIN_RESP"
 
 echo "== 4. 创建邀请码 =="

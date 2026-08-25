@@ -1,9 +1,16 @@
 # Runtime check (new semantics): default list shows ALL devices (incl. rejected/kicked);
 # status=rejected filter still works; same machine_id re-register revives to pending; delete removes.
 param(
-    [string]$WebBase = 'http://10.0.0.6:11211'
+    [string]$WebBase = '',
+    [string]$AdminUser = '',
+    [string]$AdminPassword = ''
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot '_anf_env.ps1')
+if (-not $WebBase) { $WebBase = $env:ANF_WEB_BASE ?? 'http://127.0.0.1:11211' }
+if (-not $AdminUser) { $AdminUser = $env:ANF_ADMIN_USER ?? 'admin' }
+if (-not $AdminPassword) { $AdminPassword = $env:ANF_ADMIN_PASSWORD ?? '' }
+if (-not $AdminPassword) { throw '请在仓库根 .env 设置 ANF_ADMIN_PASSWORD（参考 .env.example）' }
 $Tmp = Join-Path $env:TEMP ('anf-m3-verify-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $Tmp | Out-Null
 $CookieFile = Join-Path $Tmp 'cookies.txt'
@@ -24,7 +31,7 @@ function Get-Md5Hex([string]$s) {
     $m=[System.Security.Cryptography.MD5]::Create(); $b=$m.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($s)); -join ($b | ForEach-Object { $_.ToString('x2') })
 }
 
-Invoke-AnfApi -Method POST -Path '/api/v1/auth/login' -Auth -Body ('{"username":"admin","password":"' + (Get-Md5Hex 'admin') + '"}') | Out-Null
+Invoke-AnfApi -Method POST -Path '/api/v1/auth/login' -Auth -Body ('{"username":"' + $AdminUser + '","password":"' + (Get-Md5Hex $AdminPassword) + '"}') | Out-Null
 $Invite = (Invoke-AnfApi -Method POST -Path '/api/v1/invites' -Auth -Body '{"max_uses":2}' | ConvertFrom-Json).code
 $m = [guid]::NewGuid().ToString()
 $reg = Invoke-AnfApi -Method POST -Path '/api/v1/devices/register' -Body (@{ invite_code=$Invite; machine_id=$m } | ConvertTo-Json -Compress) | ConvertFrom-Json

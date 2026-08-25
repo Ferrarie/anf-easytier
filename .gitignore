@@ -32,6 +32,14 @@ musl_gcc
 # log
 easytier-panic.log
 
+# Python 脚本运行产物
+__pycache__/
+
+# Android 签名密钥（不入库；CI 通过 ANDROID_KEYSTORE_* secrets 注入）
+easytier-gui/src-tauri/gen/android/app/upload-keystore.jks
+easytier-gui/src-tauri/gen/android/app/upload-keystore.p12
+easytier-gui/src-tauri/gen/android/keystore.properties
+
 # 本地密钥与凭据（ANF 维护）
 .env
 *.env

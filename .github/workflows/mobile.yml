@@ -74,6 +74,15 @@ jobs:
           pnpm-build-filter: ''
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Restore Android signing keystore from secret
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            mkdir -p easytier-gui/src-tauri/gen/android/app
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > easytier-gui/src-tauri/gen/android/app/upload-keystore.jks
+          fi
+
       - uses: Swatinem/rust-cache@v2
         with:
           # The prefix cache key, this can be changed to start a new cache manually.
@@ -83,6 +92,10 @@ jobs:
           cache-targets: "false"
 
       - name: Build
+        env:
+          ANDROID_KEYSTORE_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_STORE_PASSWORD }}
+          ANDROID_KEYSTORE_KEY_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_KEY_ALIAS: ${{ secrets.ANDROID_KEYSTORE_KEY_ALIAS }}
         run: |
           cd easytier-gui
           pnpm tauri android build --apk --target "$ARCH" --split-per-abi

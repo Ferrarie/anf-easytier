@@ -61,7 +61,7 @@
 
 ### 5.1 设备接入流程（注册 → 审批 → 放行 → 入网）
 
-1. 客户端填写服务器地址（`ip:port`，支持 `tcp` / `udp` / `ws`，如 `10.0.0.6:22020`）+ 设备昵称，点击「启动」。
+1. 客户端填写服务器地址（`ip:port`，支持 `tcp` / `udp` / `ws`，如 `1.2.3.4:22020`）+ 设备昵称，点击「启动」。
 2. 客户端连上中心 config-server，凭邀请码注册，状态为 `pending`（待审批）。
 3. 管理员在后台设备审批页看到待审批设备；放行前系统**引导先分配 Tag 与网络实例**（缺失时给出提示）。
 4. 放行后中心为设备生成托管配置（虚拟 IP、ACL 编译结果、网络名 / 密钥、中心 peer），通过 config-server 下发。
@@ -126,17 +126,15 @@
 ### 7.1 生产部署（docker compose）
 
 ```bash
-cd deploy
-cp .env.example .env          # 按需修改 ANF_NETWORK_NAME / ANF_NETWORK_SECRET / ANF_CENTER_PEER_URL
-docker compose -f compose.anf.yaml up -d
+cp .env.example .env          # 按需修改 ANF_NETWORK_NAME / ANF_NETWORK_SECRET / ANF_CENTER_PEER_URL 等
+docker compose --env-file .env -f deploy/compose.anf.yaml up -d
 ```
 
 部署文件说明（`deploy/`）：
 
 - `compose.anf.yaml`：`anf-easytier-web`（11211 + 22020/udp，卷 `web-data:/app/data`）+ `anf-easytier-core`（host 网络，中继 11110，避开官方 core 的 11010）。
 - `Dockerfile.web`：将 `deploy/bin/easytier-web`（embed 前端二进制）打进 `ubuntu:24.04` 镜像。
-- 环境变量：`ANF_NETWORK_NAME`（默认 `anf-m3`）、`ANF_NETWORK_SECRET`、`ANF_CENTER_PEER_URL`（默认 `tcp://10.0.0.6:11110`）。
-- VM 连接凭据存放于仓库根 `.env`（gitignore，不入库）。
+- 环境变量统一存放于仓库根 `.env`（模板见 `.env.example`，gitignore 不入库）：`ANF_NETWORK_NAME`（默认 `anf-m3`）、`ANF_NETWORK_SECRET`、`ANF_CENTER_PEER_URL`、`ANF_WEB_BASE`、`ANF_CONFIG_SERVER`、`ANF_ADMIN_USER`/`ANF_ADMIN_PASSWORD`、VM SSH（`ANF_VM_*`）等；`easytier-web` 启动时自动把 `ANF_*` 映射为 `ET_ANF_*`。
 
 ### 7.2 更新 web 二进制（embed 前端）
 

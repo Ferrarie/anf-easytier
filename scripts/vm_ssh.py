@@ -11,38 +11,24 @@ Usage:
 Reads only .env (already gitignored). Never prints the password.
 """
 
-import os
 import socket
 import sys
 import re
 
 import paramiko
 
-
-def load_env(path):
-    cfg = {}
-    if not os.path.exists(path):
-        return cfg
-    with open(path, encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            k, _, v = line.partition("=")
-            cfg[k.strip()] = v.strip()
-    return cfg
+from _anf_env import load_env, require_env
 
 
 def main():
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    env = load_env(os.path.join(root, ".env"))
+    env = load_env()
 
-    host = env.get("ANF_VM_HOST", "10.0.0.6")
+    host = require_env(env, "ANF_VM_HOST")
     port = int(env.get("ANF_VM_PORT", "22"))
     user = env.get("ANF_VM_USER", "anf-et")
-    password = env.get("ANF_VM_PASSWORD")
-    bind = env.get("ANF_VM_SSH_BIND", "10.0.0.3")
-    sudo_pass = env.get("ANF_VM_SUDO_PASSWORD", password)
+    password = require_env(env, "ANF_VM_PASSWORD")
+    bind = env.get("ANF_VM_SSH_BIND") or ""
+    sudo_pass = env.get("ANF_VM_SUDO_PASSWORD") or password
 
     args = sys.argv[1:]
     use_sudo = False

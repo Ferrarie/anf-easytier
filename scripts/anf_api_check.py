@@ -9,7 +9,12 @@ import json
 import urllib.request
 import http.cookiejar
 
-BASE = "http://127.0.0.1:11211"
+from _anf_env import load_env
+
+ENV = load_env()
+BASE = ENV.get("ANF_WEB_BASE") or "http://127.0.0.1:11211"
+ADMIN_USER = ENV.get("ANF_ADMIN_USER") or "admin"
+ADMIN_PASSWORD = ENV.get("ANF_ADMIN_PASSWORD") or "admin"
 
 
 def req(opener, path, method="GET", data=None, headers=None):
@@ -28,12 +33,12 @@ def main():
     print("root_html_has_anf:", "ANF" in root or "anf" in root, "len=", len(root))
 
     # login as admin (frontend MD5s the password)
-    md5 = hashlib.md5(b"admin").hexdigest()
+    md5 = hashlib.md5(ADMIN_PASSWORD.encode()).hexdigest()
     try:
         r = opener.open(
             urllib.request.Request(
                 BASE + "/api/v1/auth/login",
-                data=json.dumps({"username": "admin", "password": md5}).encode(),
+                data=json.dumps({"username": ADMIN_USER, "password": md5}).encode(),
                 method="POST",
                 headers={"Content-Type": "application/json"},
             ),

@@ -39,6 +39,25 @@ static GLOBAL_MIMALLOC: MiMalloc = MiMalloc;
 
 rust_i18n::i18n!("locales", fallback = "en");
 
+/// 将仓库根 .env 中的 ANF_* 键映射为 easytier-web 的 ET_ANF_* 环境变量
+/// （ET_* 已存在时不覆盖），使根目录 .env 成为唯一配置源。
+fn load_anf_env_aliases() {
+    const ALIASES: &[(&str, &str)] = &[
+        ("ANF_NETWORK_NAME", "ET_ANF_NETWORK_NAME"),
+        ("ANF_NETWORK_SECRET", "ET_ANF_NETWORK_SECRET"),
+        ("ANF_CENTER_PEER_URL", "ET_ANF_CENTER_PEER_URL"),
+        ("ANF_ADMIN_USER", "ET_ANF_CENTER_USER"),
+    ];
+    for (src, dst) in ALIASES {
+        if std::env::var_os(dst).is_none() {
+            if let Ok(value) = std::env::var(src) {
+                // Rust 2024 中 env::set_var 为 unsafe；此处仅发生在启动早期、单线程阶段。
+                unsafe { std::env::set_var(dst, value) };
+            }
+        }
+    }
+}
+
 #[derive(Parser, Debug)]
 #[command(name = "easytier-web", author, version = EASYTIER_VERSION , about, long_about = None)]
 struct Cli {
@@ -178,8 +197,8 @@ enum CliCommand {
         machine_id: String,
         #[arg(long, default_value = "admin")]
         username: String,
-        /// 用户不存在时用该密码创建（初始 admin 引导）
-        #[arg(long)]
+        /// 用户不存在时用该密码创建（初始 admin 引导；默认读取根 .env 的 ANF_ADMIN_PASSWORD）
+        #[arg(long, env = "ANF_ADMIN_PASSWORD", hide_env_values = true)]
         create_user_password: Option<String>,
     },
 }
@@ -247,7 +266,7 @@ pub struct FeatureFlags {
     )]
     pub anf_network_secret: Option<String>,
 
-    /// ANF 中心 core peer 地址（如 tcp://10.0.0.6:11110）。
+    /// ANF 中心 core peer 地址（如 tcp://<center-host>:11110；根 .env 的 ANF_CENTER_PEER_URL 会自动映射）。
     #[arg(
         long,
         env = "ET_ANF_CENTER_PEER_URL",
@@ -339,6 +358,9 @@ async fn main() {
     let locale = sys_locale::get_locale().unwrap_or_else(|| String::from("en-US"));
     rust_i18n::set_locale(&locale);
     setup_panic_handler();
+
+    let _ = dotenvy::dotenv();
+    load_anf_env_aliases();
 
     let cli = Cli::parse();
 

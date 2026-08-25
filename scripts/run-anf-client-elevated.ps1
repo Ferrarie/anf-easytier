@@ -1,7 +1,7 @@
 <#
 以管理员权限运行 anf-easytier 客户端（anf-easytier-core），用于创建 TUN 虚拟网卡的验证。
 用法（普通 shell 触发，会弹 UAC）：
-  Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','D:\Project\anf-easytier\scripts\run-anf-client-elevated.ps1','-ConfigServer','udp://10.0.0.6:22020/admin','-MachineId','<uuid>'
+  Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','D:\Project\anf-easytier\scripts\run-anf-client-elevated.ps1','-ConfigServer','udp://<config-server-host>:22020/admin','-MachineId','<uuid>'
 停止（同样提权）：
   ... -File scripts\run-anf-client-elevated.ps1 -Kill
 #>
