@@ -80,6 +80,8 @@ jobs:
       OS: ${{ matrix.OS }}
       GUI_TARGET: ${{ matrix.GUI_TARGET }}
       OSS_BUCKET: ${{ secrets.ALIYUN_OSS_BUCKET }}
+      # secrets 上下文不能用于 if 条件，先求值为 env 布尔值再引用
+      APPLE_CERT_CONFIGURED: ${{ secrets.APPLE_CERTIFICATE != '' }}
     needs: pre_job
     if: needs.pre_job.outputs.should_skip != 'true'    
     steps:
@@ -120,7 +122,7 @@ jobs:
 
       - name: Validate macOS signing secrets
         # 未配置 Apple 证书时跳过校验，mac 构建以未签名方式产出
-        if: ${{ contains(matrix.GUI_TARGET, 'darwin') && secrets.APPLE_CERTIFICATE != '' }}
+        if: ${{ contains(matrix.GUI_TARGET, 'darwin') && env.APPLE_CERT_CONFIGURED == 'true' }}
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -141,14 +143,14 @@ jobs:
           fi
 
       - name: Build GUI
-        if: ${{ matrix.GUI_TARGET != '' && (!contains(matrix.GUI_TARGET, 'darwin') || secrets.APPLE_CERTIFICATE == '') }}
+        if: ${{ matrix.GUI_TARGET != '' && (!contains(matrix.GUI_TARGET, 'darwin') || env.APPLE_CERT_CONFIGURED == 'false') }}
         uses: tauri-apps/tauri-action@v0
         with:
           projectPath: ./easytier-gui
           args: --verbose --target ${{ matrix.GUI_TARGET }}
 
       - name: Build GUI (signed and notarized)
-        if: ${{ contains(matrix.GUI_TARGET, 'darwin') && secrets.APPLE_CERTIFICATE != '' }}
+        if: ${{ contains(matrix.GUI_TARGET, 'darwin') && env.APPLE_CERT_CONFIGURED == 'true' }}
         timeout-minutes: 60
         uses: tauri-apps/tauri-action@v0
         env:
@@ -163,7 +165,7 @@ jobs:
           args: --verbose --target ${{ matrix.GUI_TARGET }}
 
       - name: Notarize and staple macOS DMG
-        if: ${{ contains(matrix.GUI_TARGET, 'darwin') && secrets.APPLE_CERTIFICATE != '' }}
+        if: ${{ contains(matrix.GUI_TARGET, 'darwin') && env.APPLE_CERT_CONFIGURED == 'true' }}
         timeout-minutes: 45
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
