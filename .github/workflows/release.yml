@@ -1,4 +1,4 @@
-name: EasyTier Release
+name: ANF EasyTier Release
 
 on:
   workflow_dispatch:
@@ -18,7 +18,7 @@ on:
       version:
         description: 'Version for this release'
         type: string
-        default: 'v2.6.4'
+        default: 'v1.0.0'
         required: true
       make_latest:
         description: 'Mark this release as latest'
@@ -89,6 +89,7 @@ jobs:
         with:
           name: ${{ inputs.version }}
           draft: true
+          make_latest: ${{ inputs.make_latest }}
           files: |
             ./zipped_assets/*
           token: ${{ secrets.GITHUB_TOKEN }}

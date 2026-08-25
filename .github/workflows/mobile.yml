@@ -1,4 +1,4 @@
-name: EasyTier Mobile
+name: ANF EasyTier Mobile
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
   pull_request:
     branches: ["develop", "main"]
     types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -72,7 +73,8 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          cmdline-tools-version: 12.0
+          # 12.0 对应的下载 URL 已 404，改用实际构建号 12266719
+          cmdline-tools-version: 12266719
           packages: 'build-tools;34.0.0 ndk;26.0.10792818 platform-tools platforms;android-34 '
 
       - name: Setup Android Environment
@@ -120,7 +122,7 @@ jobs:
       - name: Archive artifact
         uses: actions/upload-artifact@v5
         with:
-          name: easytier-mobile-android-${{ matrix.ARCH }}
+          name: anf-easytier-mobile-android-${{ matrix.ARCH }}
           path: |
             ./artifacts/*
 

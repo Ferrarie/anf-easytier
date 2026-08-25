@@ -1,4 +1,4 @@
-name: EasyTier GUI
+name: ANF EasyTier GUI
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
   pull_request:
     branches: ["develop", "main"]
     types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -118,7 +119,8 @@ jobs:
           fi
 
       - name: Validate macOS signing secrets
-        if: ${{ contains(matrix.GUI_TARGET, 'darwin') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        # 未配置 Apple 证书时跳过校验，mac 构建以未签名方式产出
+        if: ${{ contains(matrix.GUI_TARGET, 'darwin') && secrets.APPLE_CERTIFICATE != '' }}
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -139,14 +141,14 @@ jobs:
           fi
 
       - name: Build GUI
-        if: ${{ matrix.GUI_TARGET != '' && (!contains(matrix.GUI_TARGET, 'darwin') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository)) }}
+        if: ${{ matrix.GUI_TARGET != '' && (!contains(matrix.GUI_TARGET, 'darwin') || secrets.APPLE_CERTIFICATE == '') }}
         uses: tauri-apps/tauri-action@v0
         with:
           projectPath: ./easytier-gui
           args: --verbose --target ${{ matrix.GUI_TARGET }}
 
       - name: Build GUI (signed and notarized)
-        if: ${{ contains(matrix.GUI_TARGET, 'darwin') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        if: ${{ contains(matrix.GUI_TARGET, 'darwin') && secrets.APPLE_CERTIFICATE != '' }}
         timeout-minutes: 60
         uses: tauri-apps/tauri-action@v0
         env:
@@ -161,7 +163,7 @@ jobs:
           args: --verbose --target ${{ matrix.GUI_TARGET }}
 
       - name: Notarize and staple macOS DMG
-        if: ${{ contains(matrix.GUI_TARGET, 'darwin') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        if: ${{ contains(matrix.GUI_TARGET, 'darwin') && secrets.APPLE_CERTIFICATE != '' }}
         timeout-minutes: 45
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -230,7 +232,7 @@ jobs:
       - name: Archive artifact
         uses: actions/upload-artifact@v5
         with:
-          name: easytier-gui-${{ matrix.ARTIFACT_NAME }}
+          name: anf-easytier-gui-${{ matrix.ARTIFACT_NAME }}
           path: |
             ./artifacts/*
 
