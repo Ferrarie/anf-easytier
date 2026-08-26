@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import {
-    Button, Column, DataTable, Dialog, Dropdown, InputNumber, InputText,
+    Button, Checkbox, Column, DataTable, Dialog, Dropdown, InputNumber, InputText,
     MultiSelect, useToast,
 } from 'primevue';
 import ApiClient from '../modules/api';
@@ -44,6 +44,7 @@ const loadRules = async () => {
 };
 
 const ruleDialog = ref(false);
+const editRuleId = ref<number | undefined>(undefined);
 const ruleName = ref('');
 const ruleSource = ref<Array<string>>([]);
 const ruleDest = ref<Array<string>>([]);
@@ -51,6 +52,9 @@ const ruleProtocol = ref('any');
 const rulePorts = ref('');
 const ruleAction = ref('allow');
 const rulePriority = ref(0);
+const ruleEnabled = ref(true);
+
+const ruleDialogTitle = computed(() => (editRuleId.value ? '编辑 ACL 规则' : '新建 ACL 规则'));
 
 const protocolOptions = [
     { label: 'any', value: 'any' },
@@ -65,6 +69,7 @@ const actionOptions = [
 ];
 
 const openCreate = () => {
+    editRuleId.value = undefined;
     ruleName.value = '';
     ruleSource.value = [];
     ruleDest.value = [];
@@ -72,26 +77,47 @@ const openCreate = () => {
     rulePorts.value = '';
     ruleAction.value = 'allow';
     rulePriority.value = 0;
+    ruleEnabled.value = true;
     ruleDialog.value = true;
 };
 
-const create = async () => {
+const openEdit = (rule: any) => {
+    editRuleId.value = rule.id;
+    ruleName.value = rule.name;
+    ruleSource.value = rule.source_tags ?? [];
+    ruleDest.value = rule.destination_tags ?? [];
+    ruleProtocol.value = rule.protocol ?? 'any';
+    rulePorts.value = (rule.ports ?? []).join(',');
+    ruleAction.value = rule.action ?? 'allow';
+    rulePriority.value = rule.priority ?? 0;
+    ruleEnabled.value = rule.enabled !== false;
+    ruleDialog.value = true;
+};
+
+const save = async () => {
     if (!selectedNetworkId.value) return;
+    const payload = {
+        name: ruleName.value.trim(),
+        enabled: ruleEnabled.value,
+        source_tags: ruleSource.value,
+        destination_tags: ruleDest.value,
+        protocol: ruleProtocol.value,
+        ports: rulePorts.value.split(',').map((s) => s.trim()).filter(Boolean),
+        action: ruleAction.value,
+        priority: rulePriority.value,
+    };
     try {
-        await props.api?.createAclRule(selectedNetworkId.value, {
-            name: ruleName.value,
-            source_tags: ruleSource.value,
-            destination_tags: ruleDest.value,
-            protocol: ruleProtocol.value,
-            ports: rulePorts.value.split(',').map((s) => s.trim()).filter(Boolean),
-            action: ruleAction.value,
-            priority: rulePriority.value,
-        });
-        toast.add({ severity: 'success', summary: '规则已创建', life: 2000 });
+        if (editRuleId.value) {
+            await props.api?.updateAclRule(selectedNetworkId.value, editRuleId.value, payload);
+            toast.add({ severity: 'success', summary: '规则已更新', life: 2000 });
+        } else {
+            await props.api?.createAclRule(selectedNetworkId.value, payload);
+            toast.add({ severity: 'success', summary: '规则已创建', life: 2000 });
+        }
         ruleDialog.value = false;
         await loadRules();
     } catch (e: any) {
-        toast.add({ severity: 'error', summary: '创建失败', detail: e?.response?.data?.message ?? e, life: 3000 });
+        toast.add({ severity: 'error', summary: '保存失败', detail: e?.response?.data?.message ?? e, life: 3000 });
     }
 };
 
@@ -147,15 +173,25 @@ onMounted(async () => {
                 </template>
             </Column>
             <Column field="priority" header="优先级" style="width: 6rem" />
-            <Column header="操作" style="width: 8rem">
+            <Column field="enabled" header="启用" style="width: 5rem">
                 <template #body="{ data }">
+                    {{ data.enabled ? '是' : '否' }}
+                </template>
+            </Column>
+            <Column header="操作" style="width: 12rem">
+                <template #body="{ data }">
+                    <Button label="编辑" size="small" severity="secondary" class="mr-1" @click="openEdit(data)" />
                     <Button label="删除" size="small" severity="danger" @click="remove(data.id)" />
                 </template>
             </Column>
         </DataTable>
 
-        <Dialog v-model:visible="ruleDialog" header="新建 ACL 规则" modal class="w-full max-w-lg">
+        <Dialog v-model:visible="ruleDialog" :header="ruleDialogTitle" modal class="w-full max-w-lg">
             <div class="space-y-4">
+                <div v-if="editRuleId" class="p-field">
+                    <label class="block text-sm font-medium">ID</label>
+                    <InputText :model-value="String(editRuleId)" class="w-full" disabled />
+                </div>
                 <div class="p-field">
                     <label class="block text-sm font-medium">规则名</label>
                     <InputText v-model="ruleName" class="w-full" required />
@@ -190,9 +226,13 @@ onMounted(async () => {
                     <Dropdown v-model="ruleAction" :options="actionOptions" option-label="label"
                         option-value="value" class="w-full" />
                 </div>
+                <div class="p-field flex items-center gap-2">
+                    <Checkbox v-model="ruleEnabled" :binary="true" input-id="rule-enabled" />
+                    <label for="rule-enabled" class="text-sm font-medium">启用该规则</label>
+                </div>
                 <div class="flex justify-end gap-2">
                     <Button label="取消" severity="secondary" @click="ruleDialog = false" />
-                    <Button label="创建" @click="create" />
+                    <Button label="保存" @click="save" />
                 </div>
             </div>
         </Dialog>
