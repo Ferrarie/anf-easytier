@@ -71,6 +71,18 @@ pub enum AnfNetError {
     Db(#[from] DbErr),
 }
 
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AnfStats {
+    pub total_devices: u32,
+    pub pending: u32,
+    pub approved: u32,
+    pub rejected: u32,
+    pub kicked: u32,
+    pub networks: u32,
+    pub tags: u32,
+    pub rules: u32,
+}
+
 fn now() -> DateTime<FixedOffset> {
     chrono::Local::now().fixed_offset()
 }
@@ -431,6 +443,31 @@ impl Db {
             }
         }
         Ok(ids)
+    }
+
+    /// ANF 管理统计（Dashboard 数据源）。
+    pub async fn anf_stats(&self) -> Result<AnfStats, DbErr> {
+        use entity::{acl_rules, devices, network_instances, tags};
+        use crate::db::anf::DeviceStatus;
+
+        let all = devices::Entity::find().all(self.orm_db()).await?;
+        let count = |status: DeviceStatus| {
+            all.iter()
+                .filter(|d| DeviceStatus::from_str(&d.status) == Some(status))
+                .count() as u32
+        };
+        Ok(AnfStats {
+            total_devices: all.len() as u32,
+            pending: count(DeviceStatus::Pending),
+            approved: count(DeviceStatus::Approved),
+            rejected: count(DeviceStatus::Rejected),
+            kicked: count(DeviceStatus::Kicked),
+            networks: network_instances::Entity::find()
+                .count(self.orm_db())
+                .await? as u32,
+            tags: tags::Entity::find().count(self.orm_db()).await? as u32,
+            rules: acl_rules::Entity::find().count(self.orm_db()).await? as u32,
+        })
     }
 
     // ===== ACL 规则 =====
@@ -807,6 +844,29 @@ mod tests {
 
         let ids = db.list_network_ids_using_tag("网关").await.unwrap();
         assert!(ids.contains(&net.id));
+    }
+
+    #[tokio::test]
+    async fn anf_stats_counts_devices_by_status_and_resources() {
+        let db = Db::memory_db().await;
+        let admin = admin_user(&db).await;
+
+        let net = db
+            .create_network("网1", Some("10.40.0.0/24".to_string()))
+            .await
+            .unwrap();
+        db.create_tag("办公").await.unwrap();
+        register_approved_device(&db, admin, uuid::Uuid::new_v4(), &["办公"], &[&net.id]).await;
+
+        let stats = db.anf_stats().await.unwrap();
+        assert_eq!(stats.networks, 1);
+        assert_eq!(stats.tags, 1);
+        assert_eq!(stats.approved, 1);
+        assert_eq!(stats.total_devices, 1);
+        assert_eq!(
+            stats.total_devices,
+            stats.pending + stats.approved + stats.rejected + stats.kicked
+        );
     }
 
     #[tokio::test]

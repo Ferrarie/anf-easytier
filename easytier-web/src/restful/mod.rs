@@ -115,6 +115,18 @@ struct GetSummaryJsonResp {
     device_count: u32,
 }
 
+#[derive(Debug, serde::Serialize)]
+struct AnfStatsJson {
+    total_devices: u32,
+    pending: u32,
+    approved: u32,
+    rejected: u32,
+    kicked: u32,
+    networks: u32,
+    tags: u32,
+    rules: u32,
+}
+
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 struct GenerateConfigRequest {
     config: NetworkConfig,
@@ -207,6 +219,23 @@ impl RestfulServer {
             device_count: machines.len() as u32,
         }
         .into())
+    }
+
+    async fn handle_get_anf_stats(
+        _admin: AdminSession,
+        axum::Extension(db): axum::Extension<Db>,
+    ) -> Result<Json<AnfStatsJson>, HttpHandleError> {
+        let s = db.anf_stats().await.map_err(convert_db_error)?;
+        Ok(Json(AnfStatsJson {
+            total_devices: s.total_devices,
+            pending: s.pending,
+            approved: s.approved,
+            rejected: s.rejected,
+            kicked: s.kicked,
+            networks: s.networks,
+            tags: s.tags,
+            rules: s.rules,
+        }))
     }
 
     async fn handle_generate_config(
@@ -319,6 +348,7 @@ impl RestfulServer {
 
         let mut app = Router::new()
             .route("/api/v1/summary", get(Self::handle_get_summary))
+            .route("/api/v1/anf/stats", get(Self::handle_get_anf_stats))
             .route("/api/v1/sessions", get(Self::handle_list_all_sessions))
             .merge(invites::router())
             .merge(devices::admin_router())
