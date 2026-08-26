@@ -33,9 +33,17 @@ const load = async () => {
 };
 
 const create = async () => {
+    if (!newName.value.trim()) {
+        toast.add({ severity: 'warn', summary: '名称必填', life: 2000 });
+        return;
+    }
     try {
-        await props.api?.createNetwork(newName.value, newCidr.value);
-        toast.add({ severity: 'success', summary: '网络已创建', life: 2000 });
+        const created = await props.api?.createNetwork(newName.value.trim(), newCidr.value);
+        toast.add({
+            severity: 'success',
+            summary: `网络已创建（网段 ${created?.cidr ?? '—'}）`,
+            life: 2000,
+        });
         newName.value = '';
         newCidr.value = '';
         createDialog.value = false;
@@ -95,7 +103,7 @@ onMounted(load);
                     <InputText v-model="newName" class="w-full" required />
                 </div>
                 <div class="p-field">
-                    <label class="block text-sm font-medium">网段（可选，展示用）</label>
+                    <label class="block text-sm font-medium">网段（可选，留空自动分配随机网段，如 10.x.y.0/24）</label>
                     <InputText v-model="newCidr" class="w-full" placeholder="10.10.0.0/24" />
                 </div>
                 <div class="flex justify-end gap-2">
