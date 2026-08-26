@@ -78,7 +78,7 @@ async fn create(
     let net = db
         .create_network(&req.name, req.cidr)
         .await
-        .map_err(convert_db_error)?;
+        .map_err(map_err)?;
     Ok(Json(NetworkJson::from_model(&db, net).await?))
 }
 

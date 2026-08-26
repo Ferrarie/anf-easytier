@@ -8,6 +8,7 @@ use chrono::{DateTime, FixedOffset};
 use easytier::proto::acl::{
     Action, AclV1, Chain, ChainType, GroupIdentity, GroupInfo, Protocol, Rule,
 };
+use rand::Rng;
 use sea_orm::{
     ColumnTrait, DbErr, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter,
     QueryOrder, Set,
@@ -19,6 +20,38 @@ use crate::db::anf::DEVICE_STATUS_APPROVED;
 
 const MAX_ACL_PRIORITY: u32 = 65535;
 const NET_ID_PREFIX: &str = "net-";
+
+/// 保留段：VM mesh（etgame/anidev）与既有默认示例段，避免与运营网冲突。
+const RESERVED_CIDRS: &[&str] = &["10.126.0.0/16", "10.144.0.0/24"];
+
+/// 校验 IPv4 CIDR（前缀 /8–/30，网络地址与广播地址区间至少可容纳 2 台主机）。
+fn valid_cidr(cidr: &str) -> bool {
+    let Some((ip_part, prefix_part)) = cidr.trim().split_once('/') else {
+        return false;
+    };
+    let Ok(ip) = ip_part.trim().parse::<std::net::Ipv4Addr>() else {
+        return false;
+    };
+    let Ok(prefix) = prefix_part.trim().parse::<u32>() else {
+        return false;
+    };
+    (8..=30).contains(&prefix) && ip.octets()[0] != 0
+}
+
+/// 生成不与 existing/保留段冲突的随机私有 /24（10.a.b.0/24），最多重试 16 次。
+fn random_cidr(existing: &[String], rng: &mut impl Rng) -> Option<String> {
+    for _ in 0..16 {
+        let cidr = format!(
+            "10.{}.{}.0/24",
+            rng.gen_range(1..=254),
+            rng.gen_range(0..=255)
+        );
+        if !existing.iter().any(|e| e == &cidr) && !RESERVED_CIDRS.contains(&cidr.as_str()) {
+            return Some(cidr);
+        }
+    }
+    None
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum AnfNetError {
@@ -131,21 +164,49 @@ impl Db {
         &self,
         name: &str,
         cidr: Option<String>,
-    ) -> Result<entity::network_instances::Model, DbErr> {
+    ) -> Result<entity::network_instances::Model, AnfNetError> {
         use entity::network_instances;
+
+        if name.trim().is_empty() {
+            return Err(AnfNetError::InvalidInput("网络名称不能为空".to_string()));
+        }
+        let cidr = match cidr {
+            Some(c) if !c.trim().is_empty() => {
+                let c = c.trim().to_string();
+                if !valid_cidr(&c) {
+                    return Err(AnfNetError::InvalidInput(
+                        "网段格式非法，应为 IPv4 CIDR（/8–/30）".to_string(),
+                    ));
+                }
+                Some(c)
+            }
+            _ => {
+                let existing: Vec<String> = self
+                    .list_networks()
+                    .await?
+                    .iter()
+                    .filter_map(|n| n.cidr.clone())
+                    .collect();
+                Some(
+                    random_cidr(&existing, &mut rand::thread_rng()).ok_or_else(|| {
+                        AnfNetError::InvalidInput("随机网段生成失败，请重试".to_string())
+                    })?,
+                )
+            }
+        };
 
         let id = format!("{NET_ID_PREFIX}{}", &Uuid::new_v4().simple().to_string()[..8]);
         let m = network_instances::ActiveModel {
             id: Set(id.clone()),
             name: Set(name.trim().to_string()),
-            cidr: Set(cidr.map(|c| c.trim().to_string()).filter(|c| !c.is_empty())),
+            cidr: Set(cidr),
             created_at: Set(now()),
             updated_at: Set(now()),
         };
         network_instances::Entity::insert(m).exec(self.orm_db()).await?;
         self.get_network(&id)
             .await?
-            .ok_or_else(|| DbErr::Custom("网络实例创建后未找到".to_string()))
+            .ok_or_else(|| AnfNetError::InvalidInput("网络实例创建后未找到".to_string()))
     }
 
     pub async fn get_network(
@@ -432,6 +493,7 @@ impl Db {
 mod tests {
     use super::*;
     use crate::db::{Db, anf::DeviceStatus};
+    use rand::SeedableRng;
 
     async fn admin_user(db: &Db) -> i32 {
         db.auto_create_user("m2-admin").await.unwrap().id
@@ -512,6 +574,56 @@ mod tests {
         assert!(db.get_network(&net.id).await.unwrap().is_none());
         // 设备对该网络的引用也应被清理，避免孤立行。
         assert!(db.list_device_networks(device.id).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn create_network_requires_name_and_validates_cidr() {
+        let db = Db::memory_db().await;
+
+        let err = db.create_network("   ", None).await.unwrap_err();
+        assert!(matches!(err, AnfNetError::InvalidInput(_)));
+
+        let err = db
+            .create_network("网A", Some("999.1.1.1/24".to_string()))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AnfNetError::InvalidInput(_)));
+
+        let err = db
+            .create_network("网A", Some("10.0.0.0/31".to_string()))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AnfNetError::InvalidInput(_)));
+    }
+
+    #[tokio::test]
+    async fn create_network_assigns_random_cidr_when_empty() {
+        let db = Db::memory_db().await;
+
+        let net = db.create_network("随机网", None).await.unwrap();
+        let cidr = net.cidr.unwrap();
+        assert!(cidr.starts_with("10.") && cidr.ends_with(".0/24"), "{cidr}");
+
+        let net2 = db.create_network("随机网2", None).await.unwrap();
+        assert_ne!(net2.cidr.as_deref(), Some(cidr.as_str()));
+
+        let explicit = db
+            .create_network("显式网", Some("172.16.5.0/24".to_string()))
+            .await
+            .unwrap();
+        assert_eq!(explicit.cidr.as_deref(), Some("172.16.5.0/24"));
+    }
+
+    #[test]
+    fn random_cidr_excludes_existing_and_reserved() {
+        let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+        let existing = vec!["10.126.0.0/24".to_string(), "10.144.0.0/24".to_string()];
+        for _ in 0..200 {
+            let cidr = random_cidr(&existing, &mut rng).unwrap();
+            assert!(cidr.starts_with("10.") && cidr.ends_with(".0/24"));
+            assert!(!existing.contains(&cidr), "collision: {cidr}");
+            assert_ne!(cidr, "10.144.0.0/24");
+        }
     }
 
     #[tokio::test]
