@@ -5,6 +5,7 @@ import App from './App.vue'
 import EasytierFrontendLib from 'easytier-frontend-lib'
 import PrimeVue from 'primevue/config'
 import Aura from '@primeuix/themes/aura';
+import { definePreset } from '@primeuix/themes';
 import ConfirmationService from 'primevue/confirmationservice';
 import { I18nUtils } from 'easytier-frontend-lib'
 
@@ -23,6 +24,25 @@ import AclEditorPage from './components/AclEditorPage.vue'
 import DialogService from 'primevue/dialogservice';
 import ToastService from 'primevue/toastservice';
 import ApiClient from './modules/api';
+
+// ANF 品牌主色：indigo（Tailwind indigo 色阶，与 GUI 端 #6366f1→#8b5cf6 渐变同族）
+const AnfPreset = definePreset(Aura, {
+    semantic: {
+        primary: {
+            50: '#eef2ff',
+            100: '#e0e7ff',
+            200: '#c7d2fe',
+            300: '#a5b4fc',
+            400: '#818cf8',
+            500: '#6366f1',
+            600: '#4f46e5',
+            700: '#4338ca',
+            800: '#3730a3',
+            900: '#312e81',
+            950: '#1e1b4b',
+        },
+    },
+})
 
 const routes = [
     {
@@ -147,7 +167,7 @@ app.use(I18nUtils.i18n)
 app.use(PrimeVue,
     {
         theme: {
-            preset: Aura,
+            preset: AnfPreset,
             options: {
                 prefix: 'p',
                 darkModeSelector: 'system',

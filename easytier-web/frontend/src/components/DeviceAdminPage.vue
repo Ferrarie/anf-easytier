@@ -15,6 +15,7 @@ const toast = useToast();
 const devices = ref<Array<any>>([]);
 const loading = ref(false);
 const statusFilter = ref<string | undefined>(undefined);
+const keyword = ref('');
 
 const statusOptions = [
     { label: '全部', value: undefined },
@@ -27,7 +28,14 @@ const statusOptions = [
 const load = async () => {
     loading.value = true;
     try {
-        devices.value = (await props.api?.listDevices(statusFilter.value)) ?? [];
+        const list = (await props.api?.listDevices(statusFilter.value)) ?? [];
+        devices.value = keyword.value
+            ? list.filter((d: any) =>
+                `${d.display_name ?? ''} ${d.machine_id ?? ''}`
+                    .toLowerCase()
+                    .includes(keyword.value.toLowerCase()),
+            )
+            : list;
     } catch (e: any) {
         toast.add({ severity: 'error', summary: '加载设备失败', detail: e?.response?.data?.message ?? e, life: 3000 });
     } finally {
@@ -162,6 +170,7 @@ onMounted(async () => {
             <h1 class="text-xl font-semibold">设备审批</h1>
             <Dropdown v-model="statusFilter" :options="statusOptions" option-label="label" option-value="value"
                 placeholder="状态筛选" class="w-40" @change="load" />
+            <InputText v-model="keyword" placeholder="搜索显示名/机器码" class="w-56" @keyup.enter="load" />
             <Button label="刷新" icon="pi pi-refresh" severity="secondary" @click="load" />
         </div>
 
