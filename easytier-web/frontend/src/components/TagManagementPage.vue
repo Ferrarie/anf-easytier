@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
-import { Button, Column, DataTable, InputText, useToast } from 'primevue';
+import { computed, onMounted, ref } from 'vue';
+import { Button, Column, DataTable, Dialog, InputText, useToast } from 'primevue';
 import ApiClient from '../modules/api';
 
 const props = defineProps({
@@ -10,7 +10,11 @@ const props = defineProps({
 const toast = useToast();
 const tags = ref<Array<any>>([]);
 const loading = ref(false);
-const newTag = ref('');
+
+const createDialog = ref(false);
+const editId = ref<number | undefined>(undefined);
+const newName = ref('');
+const dialogTitle = computed(() => (editId.value ? '编辑 Tag' : '新建 Tag'));
 
 const load = async () => {
     loading.value = true;
@@ -23,14 +27,35 @@ const load = async () => {
     }
 };
 
-const create = async () => {
+const openCreate = () => {
+    editId.value = undefined;
+    newName.value = '';
+    createDialog.value = true;
+};
+
+const openEdit = (tag: any) => {
+    editId.value = tag.id;
+    newName.value = tag.name;
+    createDialog.value = true;
+};
+
+const save = async () => {
+    if (!newName.value.trim()) {
+        toast.add({ severity: 'warn', summary: '名称必填', life: 2000 });
+        return;
+    }
     try {
-        await props.api?.createTag(newTag.value);
-        toast.add({ severity: 'success', summary: 'tag 已创建', life: 2000 });
-        newTag.value = '';
+        if (editId.value) {
+            await props.api?.updateTag(editId.value, newName.value.trim());
+            toast.add({ severity: 'success', summary: 'tag 已更新', life: 2000 });
+        } else {
+            await props.api?.createTag(newName.value.trim());
+            toast.add({ severity: 'success', summary: 'tag 已创建', life: 2000 });
+        }
+        createDialog.value = false;
         await load();
     } catch (e: any) {
-        toast.add({ severity: 'error', summary: '创建失败', detail: e?.response?.data?.message ?? e, life: 3000 });
+        toast.add({ severity: 'error', summary: '保存失败', detail: e?.response?.data?.message ?? e, life: 3000 });
     }
 };
 
@@ -51,8 +76,7 @@ onMounted(load);
     <div>
         <div class="flex items-center gap-3 mb-4">
             <h1 class="text-xl font-semibold">Tag 管理</h1>
-            <InputText v-model="newTag" placeholder="新 tag 名（字母/数字/中划线）" class="w-64" @keyup.enter="create" />
-            <Button label="创建" icon="pi pi-plus" @click="create" />
+            <Button label="新建 Tag" icon="pi pi-plus" @click="openCreate" />
             <Button label="刷新" icon="pi pi-refresh" severity="secondary" @click="load" />
         </div>
 
@@ -60,11 +84,29 @@ onMounted(load);
             <Column field="id" header="ID" style="width: 4rem" />
             <Column field="name" header="名称" />
             <Column field="used_by" header="引用设备数" style="width: 8rem" />
-            <Column header="操作" style="width: 8rem">
+            <Column header="操作" style="width: 12rem">
                 <template #body="{ data }">
+                    <Button label="编辑" size="small" severity="secondary" class="mr-1" @click="openEdit(data)" />
                     <Button label="删除" size="small" severity="danger" @click="remove(data.id)" />
                 </template>
             </Column>
         </DataTable>
+
+        <Dialog v-model:visible="createDialog" :header="dialogTitle" modal class="w-full max-w-md">
+            <div class="space-y-4">
+                <div v-if="editId" class="p-field">
+                    <label class="block text-sm font-medium">ID</label>
+                    <InputText :model-value="String(editId)" class="w-full" disabled />
+                </div>
+                <div class="p-field">
+                    <label class="block text-sm font-medium">名称</label>
+                    <InputText v-model="newName" class="w-full" placeholder="字母/数字/中划线/下划线/点" />
+                </div>
+                <div class="flex justify-end gap-2">
+                    <Button label="取消" severity="secondary" @click="createDialog = false" />
+                    <Button label="保存" @click="save" />
+                </div>
+            </div>
+        </Dialog>
     </div>
 </template>
