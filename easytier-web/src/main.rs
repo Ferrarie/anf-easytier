@@ -353,6 +353,41 @@ async fn get_dual_stack_listener(
     Ok((v6_listener, v4_listener))
 }
 
+/// 中心运行信息（供 web 前端展示端口/服务/连接提示；值全部来自运行时配置，不硬编码）。
+#[derive(Debug, Clone)]
+pub struct CenterInfo {
+    pub version: &'static str,
+    pub api_server_port: u16,
+    pub web_server_port: Option<u16>,
+    pub config_server_protocol: String,
+    pub config_server_port: u16,
+    pub anf_network_name: String,
+    pub anf_center_peer_url: Option<String>,
+}
+
+impl CenterInfo {
+    pub fn from_cli(cli: &Cli) -> Self {
+        Self {
+            version: EASYTIER_VERSION,
+            api_server_port: cli.api_server_port,
+            web_server_port: {
+                #[cfg(feature = "embed")]
+                {
+                    cli.web_server_port
+                }
+                #[cfg(not(feature = "embed"))]
+                {
+                    None
+                }
+            },
+            config_server_protocol: cli.config_server_protocol.clone(),
+            config_server_port: cli.config_server_port,
+            anf_network_name: cli.feature_flags.anf_network_name.clone(),
+            anf_center_peer_url: cli.feature_flags.anf_center_peer_url.clone(),
+        }
+    }
+}
+
 #[tokio::main(flavor = "multi_thread", worker_threads = 4)]
 async fn main() {
     let locale = sys_locale::get_locale().unwrap_or_else(|| String::from("en-US"));
@@ -363,6 +398,7 @@ async fn main() {
     load_anf_env_aliases();
 
     let cli = Cli::parse();
+    let center_info = Arc::new(CenterInfo::from_cli(&cli));
 
     if let Some(cmd) = cli.command.clone() {
         match cmd {
@@ -498,6 +534,7 @@ async fn main() {
         db,
         web_router_restful,
         feature_flags,
+        center_info,
         oidc_config,
         webhook_config,
     )
@@ -525,4 +562,38 @@ async fn main() {
     };
 
     tokio::signal::ctrl_c().await.unwrap();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn center_info_from_cli_maps_runtime_values() {
+        let cli = Cli::try_parse_from([
+            "easytier-web",
+            "--config-server-port",
+            "25220",
+            "--config-server-protocol",
+            "udp",
+            "--api-server-port",
+            "15211",
+            "--anf-network-name",
+            "anf-m3",
+            "--anf-center-peer-url",
+            "tcp://10.126.126.6:13110",
+        ])
+        .unwrap();
+        let info = CenterInfo::from_cli(&cli);
+        assert_eq!(info.version, EASYTIER_VERSION);
+        assert_eq!(info.api_server_port, 15211);
+        assert_eq!(info.config_server_protocol, "udp");
+        assert_eq!(info.config_server_port, 25220);
+        assert_eq!(info.anf_network_name, "anf-m3");
+        assert_eq!(
+            info.anf_center_peer_url.as_deref(),
+            Some("tcp://10.126.126.6:13110")
+        );
+    }
 }

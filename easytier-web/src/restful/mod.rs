@@ -1,6 +1,7 @@
 mod auth;
 pub(crate) mod captcha;
 mod acl;
+mod center;
 mod devices;
 mod invites;
 mod network;
@@ -36,6 +37,7 @@ use tower_sessions_sqlx_store::SqliteStore;
 use users::{AuthSession, Backend};
 
 use crate::FeatureFlags;
+use crate::CenterInfo;
 use crate::client_manager::ClientManager;
 use crate::client_manager::storage::StorageToken;
 use crate::db::{Db, UserIdInDb};
@@ -95,6 +97,7 @@ pub struct RestfulServer {
     bind_addr: SocketAddr,
     client_mgr: Arc<ClientManager>,
     feature_flags: Arc<FeatureFlags>,
+    center_info: Arc<CenterInfo>,
     webhook_config: SharedWebhookConfig,
     db: Db,
     oidc_config: oidc::OidcConfig,
@@ -161,6 +164,7 @@ impl RestfulServer {
         db: Db,
         web_router: Option<Router>,
         feature_flags: Arc<FeatureFlags>,
+        center_info: Arc<CenterInfo>,
         oidc_config: oidc::OidcConfig,
         webhook_config: SharedWebhookConfig,
     ) -> anyhow::Result<Self> {
@@ -170,6 +174,7 @@ impl RestfulServer {
             bind_addr,
             client_mgr,
             feature_flags,
+            center_info,
             webhook_config,
             db,
             oidc_config,
@@ -320,6 +325,7 @@ impl RestfulServer {
             .merge(networks::router())
             .merge(tags::router())
             .merge(acl::router())
+            .merge(center::router())
             .merge(NetworkApi::build_route())
             .merge(rpc::router())
             .route_layer(login_required!(Backend))
@@ -334,6 +340,7 @@ impl RestfulServer {
             .route("/api/v1/parse-config", post(Self::handle_parse_config))
             .layer(Extension(self.oidc_config.clone()))
             .layer(Extension(self.feature_flags.clone()))
+            .layer(Extension(self.center_info.clone()))
             .layer(Extension(self.db.clone()))
             .layer(MessagesManagerLayer)
             .layer(auth_layer)
