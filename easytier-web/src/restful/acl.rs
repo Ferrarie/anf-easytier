@@ -103,7 +103,7 @@ pub fn router() -> Router<AppStateInner> {
         )
 }
 
-async fn reconcile_after_acl_change(
+pub(crate) async fn reconcile_after_acl_change(
     client_mgr: &ClientManager,
     db: &Db,
     feature_flags: &Arc<FeatureFlags>,

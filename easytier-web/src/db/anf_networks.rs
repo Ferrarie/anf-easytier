@@ -322,6 +322,117 @@ impl Db {
         Ok(())
     }
 
+    /// 更新 tag 名称（ID 不可变）；级联同步 device_tags 与 ACL 规则 JSON 引用。
+    pub async fn update_tag(
+        &self,
+        id: i32,
+        name: &str,
+    ) -> Result<entity::tags::Model, AnfNetError> {
+        use entity::{acl_rules, device_tags, tags};
+
+        let trimmed = name.trim().to_string();
+        if !valid_tag_name(&trimmed) {
+            return Err(AnfNetError::InvalidInput(
+                "tag 名非法（字母/数字/中划线/下划线/点，≤32 字符，不含空白）".to_string(),
+            ));
+        }
+        let existing = tags::Entity::find_by_id(id)
+            .one(self.orm_db())
+            .await?
+            .ok_or(AnfNetError::TagNotFound)?;
+        if existing.name == trimmed {
+            return Ok(existing);
+        }
+        let dup = tags::Entity::find()
+            .filter(tags::Column::Name.eq(&trimmed))
+            .one(self.orm_db())
+            .await?;
+        if dup.is_some() {
+            return Err(AnfNetError::InvalidInput("tag 名称已存在".to_string()));
+        }
+
+        // 级联 device_tags（按名字符串引用）
+        let rows = device_tags::Entity::find()
+            .filter(device_tags::Column::Tag.eq(&existing.name))
+            .all(self.orm_db())
+            .await?;
+        device_tags::Entity::delete_many()
+            .filter(device_tags::Column::Tag.eq(&existing.name))
+            .exec(self.orm_db())
+            .await?;
+        for row in rows {
+            device_tags::Entity::insert(device_tags::ActiveModel {
+                device_id: Set(row.device_id),
+                tag: Set(trimmed.clone()),
+            })
+            .exec(self.orm_db())
+            .await?;
+        }
+
+        // 级联 ACL 规则 JSON 引用
+        for rule in acl_rules::Entity::find().all(self.orm_db()).await? {
+            let mut src = json_to_vec(&rule.source_tags);
+            let mut dst = json_to_vec(&rule.destination_tags);
+            let mut changed = false;
+            for v in src.iter_mut() {
+                if v == &existing.name {
+                    *v = trimmed.clone();
+                    changed = true;
+                }
+            }
+            for v in dst.iter_mut() {
+                if v == &existing.name {
+                    *v = trimmed.clone();
+                    changed = true;
+                }
+            }
+            if changed {
+                let mut m = rule.into_active_model();
+                m.source_tags = Set(vec_to_json(&src));
+                m.destination_tags = Set(vec_to_json(&dst));
+                m.updated_at = Set(now());
+                acl_rules::Entity::update(m).exec(self.orm_db()).await?;
+            }
+        }
+
+        let mut m = existing.into_active_model();
+        m.name = Set(trimmed);
+        Ok(tags::Entity::update(m).exec(self.orm_db()).await?)
+    }
+
+    /// 引用某 tag 的网络 id（规则引用 ∪ 带该 tag 的设备所在网络）。
+    pub async fn list_network_ids_using_tag(&self, tag: &str) -> Result<Vec<String>, DbErr> {
+        use entity::{acl_rules, device_networks, device_tags};
+
+        let mut ids: Vec<String> = Vec::new();
+        for rule in acl_rules::Entity::find().all(self.orm_db()).await? {
+            let hit = json_to_vec(&rule.source_tags).contains(&tag.to_string())
+                || json_to_vec(&rule.destination_tags).contains(&tag.to_string());
+            if hit && !ids.contains(&rule.network_inst_id) {
+                ids.push(rule.network_inst_id.clone());
+            }
+        }
+        let device_ids: Vec<i32> = device_tags::Entity::find()
+            .filter(device_tags::Column::Tag.eq(tag))
+            .all(self.orm_db())
+            .await?
+            .into_iter()
+            .map(|d| d.device_id)
+            .collect();
+        for did in device_ids {
+            for dn in device_networks::Entity::find()
+                .filter(device_networks::Column::DeviceId.eq(did))
+                .all(self.orm_db())
+                .await?
+            {
+                if !ids.contains(&dn.network_inst_id) {
+                    ids.push(dn.network_inst_id.clone());
+                }
+            }
+        }
+        Ok(ids)
+    }
+
     // ===== ACL 规则 =====
 
     pub async fn create_acl_rule(
@@ -624,6 +735,78 @@ mod tests {
             assert!(!existing.contains(&cidr), "collision: {cidr}");
             assert_ne!(cidr, "10.144.0.0/24");
         }
+    }
+
+    #[tokio::test]
+    async fn tag_rename_updates_references_and_rejects_duplicates() {
+        let db = Db::memory_db().await;
+        let admin = admin_user(&db).await;
+
+        let tag = db.create_tag("办公").await.unwrap();
+        let net = db
+            .create_network("办公网", Some("10.20.0.0/24".to_string()))
+            .await
+            .unwrap();
+        let device =
+            register_approved_device(&db, admin, uuid::Uuid::new_v4(), &["办公"], &[&net.id]).await;
+
+        let rule = db
+            .create_acl_rule(&NewAclRule {
+                network_inst_id: net.id.clone(),
+                name: "allow-http".to_string(),
+                enabled: true,
+                source_tags: vec!["办公".to_string()],
+                destination_tags: vec!["服务器".to_string()],
+                protocol: "tcp".to_string(),
+                ports: vec!["80".to_string()],
+                action: "allow".to_string(),
+                priority: 100,
+            })
+            .await
+            .unwrap();
+
+        let renamed = db.update_tag(tag.id, "办公区").await.unwrap();
+        assert_eq!(renamed.name, "办公区");
+
+        // device_tags 级联
+        let tags = db.list_device_tags(device).await.unwrap();
+        assert!(tags.contains(&"办公区".to_string()));
+        assert!(!tags.contains(&"办公".to_string()));
+
+        // ACL 规则 JSON 级联
+        let rules = db.list_acl_rules(&net.id).await.unwrap();
+        let updated = rules
+            .iter()
+            .find(|r| r.id == rule.id)
+            .expect("rule exists");
+        assert_eq!(updated.source_tags, vec_to_json(&["办公区".to_string()]));
+        assert_eq!(
+            updated.destination_tags,
+            vec_to_json(&["服务器".to_string()])
+        );
+
+        // 重名拒绝
+        db.create_tag("服务器").await.unwrap();
+        let err = db.update_tag(tag.id, "服务器").await.unwrap_err();
+        assert!(matches!(err, AnfNetError::InvalidInput(_)));
+
+        // 不存在
+        let err = db.update_tag(99999, "新名").await.unwrap_err();
+        assert!(matches!(err, AnfNetError::TagNotFound));
+    }
+
+    #[tokio::test]
+    async fn list_network_ids_using_tag_covers_rules_and_devices() {
+        let db = Db::memory_db().await;
+        let admin = admin_user(&db).await;
+        let net = db
+            .create_network("网", Some("10.30.0.0/24".to_string()))
+            .await
+            .unwrap();
+        register_approved_device(&db, admin, uuid::Uuid::new_v4(), &["网关"], &[&net.id]).await;
+
+        let ids = db.list_network_ids_using_tag("网关").await.unwrap();
+        assert!(ids.contains(&net.id));
     }
 
     #[tokio::test]

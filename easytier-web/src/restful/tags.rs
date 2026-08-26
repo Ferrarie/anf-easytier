@@ -1,18 +1,21 @@
 //! ANFAGENT-30 M2：tag 管理（管理员）。
 
+use std::sync::Arc;
+
 use axum::{
     Json,
-    extract::Path,
+    extract::{Path, State},
     http::StatusCode,
-    routing::{delete, post},
-    Router,
+    routing::{delete, patch, post},
+    Extension, Router,
 };
 use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
 
 use crate::db::{Db, entity};
+use crate::FeatureFlags;
 
-use super::{AdminSession, AppStateInner, HttpHandleError, convert_db_error, other_error};
+use super::{AdminSession, AppStateInner, HttpHandleError, acl, convert_db_error, other_error};
 
 #[derive(Debug, Deserialize)]
 pub struct CreateTagRequest {
@@ -45,7 +48,7 @@ impl TagJson {
 pub fn router() -> Router<AppStateInner> {
     Router::new()
         .route("/api/v1/tags", post(create).get(list))
-        .route("/api/v1/tags/:id", delete(remove))
+        .route("/api/v1/tags/:id", delete(remove).patch(update))
 }
 
 async fn create(
@@ -91,4 +94,49 @@ async fn remove(
             Json::from(other_error(e.to_string())),
         )),
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateTagRequest {
+    pub name: String,
+}
+
+async fn update(
+    _admin: AdminSession,
+    axum::Extension(db): axum::Extension<Db>,
+    State(client_mgr): State<AppStateInner>,
+    axum::Extension(feature_flags): axum::Extension<Arc<FeatureFlags>>,
+    Path(id): Path<i32>,
+    Json(req): Json<UpdateTagRequest>,
+) -> Result<Json<TagJson>, HttpHandleError> {
+    use crate::db::anf_networks::AnfNetError;
+
+    let tag = match db.update_tag(id, &req.name).await {
+        Ok(t) => t,
+        Err(AnfNetError::TagNotFound) => {
+            return Err((StatusCode::NOT_FOUND, Json::from(other_error("tag 不存在"))));
+        }
+        Err(AnfNetError::InvalidInput(msg)) => {
+            return Err((
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json::from(other_error(msg)),
+            ));
+        }
+        Err(AnfNetError::Db(d)) => return Err(convert_db_error(d)),
+        Err(e) => {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json::from(other_error(e.to_string())),
+            ));
+        }
+    };
+
+    let network_ids = db
+        .list_network_ids_using_tag(&tag.name)
+        .await
+        .map_err(convert_db_error)?;
+    for network_id in network_ids {
+        acl::reconcile_after_acl_change(&client_mgr, &db, &feature_flags, &network_id).await?;
+    }
+    Ok(Json(TagJson::from_model(&db, tag).await?))
 }
