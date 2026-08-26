@@ -36,6 +36,27 @@ export interface Summary {
     device_count: number;
 }
 
+export interface CenterInfo {
+    version: string;
+    api_server_port: number;
+    web_server_port?: number;
+    config_server_protocol: string;
+    config_server_port: number;
+    anf_network_name: string;
+    anf_center_peer_url?: string;
+}
+
+export interface AnfStats {
+    total_devices: number;
+    pending: number;
+    approved: number;
+    rejected: number;
+    kicked: number;
+    networks: number;
+    tags: number;
+    rules: number;
+}
+
 export interface ListNetworkInstanceIdResponse {
     running_inst_ids: Array<Utils.UUID>,
     disabled_inst_ids: Array<Utils.UUID>,
@@ -82,7 +103,6 @@ export class ApiClient {
 
         // 添加响应拦截器
         this.client.interceptors.response.use((response: AxiosResponse) => {
-            console.debug('Axios Response:', response);
             return response.data; // 假设服务器返回的数据都在data属性中
         }, (error: any) => {
             if (error.response) {
@@ -109,8 +129,7 @@ export class ApiClient {
     public async register(data: RegisterData): Promise<RegisterResponse> {
         try {
             data.credentials.password = Md5.hashStr(data.credentials.password);
-            const response = await this.client.post<RegisterResponse>('/auth/register', data);
-            console.log("register response:", response);
+            await this.client.post<RegisterResponse>('/auth/register', data);
             return { success: true, message: 'Register success', };
         } catch (error) {
             if (error instanceof AxiosError) {
@@ -124,8 +143,7 @@ export class ApiClient {
     public async login(data: Credential): Promise<LoginResponse> {
         try {
             data.password = Md5.hashStr(data.password);
-            const response = await this.client.post<any>('/auth/login', data);
-            console.log("login response:", response);
+            await this.client.post<any>('/auth/login', data);
             return { success: true, message: 'Login success', };
         } catch (error) {
             if (error instanceof AxiosError) {
@@ -257,6 +275,10 @@ export class ApiClient {
         return this.client.delete(`/tags/${id}`);
     }
 
+    public async updateTag(id: number, name: string): Promise<any> {
+        return this.client.patch(`/tags/${id}`, { name });
+    }
+
     public async listAclRules(networkId: string): Promise<Array<any>> {
         return this.client.get<any, Array<any>>(`/networks/${networkId}/rules`);
     }
@@ -269,8 +291,22 @@ export class ApiClient {
         return this.client.delete(`/networks/${networkId}/rules/${ruleId}`);
     }
 
+    public async updateAclRule(networkId: string, ruleId: number, rule: any): Promise<any> {
+        return this.client.patch(`/networks/${networkId}/rules/${ruleId}`, rule);
+    }
+
     public async get_summary(): Promise<Summary> {
         const response = await this.client.get<any, Summary>('/summary');
+        return response;
+    }
+
+    public async centerInfo(): Promise<CenterInfo> {
+        const response = await this.client.get<any, CenterInfo>('/center/info');
+        return response;
+    }
+
+    public async anfStats(): Promise<AnfStats> {
+        const response = await this.client.get<any, AnfStats>('/anf/stats');
         return response;
     }
 
