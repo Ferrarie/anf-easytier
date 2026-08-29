@@ -124,7 +124,10 @@ mod post {
             .map_err(convert_db_error)?;
         if state.enabled || is_superuser {
             set_pending_2fa(&session, user.id(), tf::unix_now()).await;
-            return Ok(Json(serde_json::json!({ "require_2fa": true })));
+            return Ok(Json(serde_json::json!({
+                "require_2fa": true,
+                "setup_required": is_superuser && !state.enabled,
+            })));
         }
 
         if let Err(e) = auth_session.login(&user).await {

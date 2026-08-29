@@ -47,6 +47,10 @@ onMounted(async () => {
     try {
         const p = await api.value.get2faPending();
         if (!p.pending) backToLogin();
+        else if (p.setup_required) {
+            // superuser 未绑定：验码页不应停留，直接引导去绑定页
+            router.replace({ name: 'twoFactorSetup' });
+        }
     } catch {
         backToLogin();
     }

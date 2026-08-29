@@ -34,8 +34,8 @@ const onSubmit = async () => {
     if (ret.success) {
         localStorage.setItem('apiHost', btoa(apiHost.value));
         if (ret.require_2fa) {
-            // 已启用两步验证（或 superuser 强制策略）：进入动态码页
-            router.push({ name: 'twoFactor' });
+            // superuser 未绑定 → 直接进绑定页（扫码引导）；已绑定 → 动态码页
+            router.push({ name: ret.setup_required ? 'twoFactorSetup' : 'twoFactor' });
         } else {
             router.push({
                 name: 'dashboard',

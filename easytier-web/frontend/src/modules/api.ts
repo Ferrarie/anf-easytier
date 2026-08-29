@@ -16,6 +16,8 @@ export interface LoginResponse {
     message: string;
     /** 登录需要两步验证（半会话已建立，跳动态码页） */
     require_2fa?: boolean;
+    /** superuser 未绑定 2FA，需先完成绑定（跳绑定页而非验码页） */
+    setup_required?: boolean;
 }
 
 export interface RegisterResponse {
@@ -146,7 +148,7 @@ export class ApiClient {
         try {
             data.password = Md5.hashStr(data.password);
             const ret = await this.client.post<any, any>('/auth/login', data);
-            return { success: true, message: 'Login success', require_2fa: !!ret?.require_2fa, };
+            return { success: true, message: 'Login success', require_2fa: !!ret?.require_2fa, setup_required: !!ret?.setup_required, };
         } catch (error) {
             if (error instanceof AxiosError) {
                 if (error.response?.status === 401) {

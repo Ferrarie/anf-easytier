@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // "两步验证"弹窗：查看状态 / 绑定 / 解绑（解绑需输入当前动态码）
 import { computed, inject, onMounted, ref } from 'vue';
-import { Button, InputText, Message, Tag } from 'primevue';
+import { Button, Card, InputText, Message, Tag } from 'primevue';
 import { useToast } from 'primevue/usetoast';
 import TwoFactorSetupPanel from './TwoFactorSetupPanel.vue';
 import ApiClient from '../modules/api';
