@@ -16,12 +16,28 @@ import paramiko
 from _anf_env import load_env, require_env
 
 
+def load_pkey(path):
+    """按常见算法尝试解析私钥文件（Transport.connect 只收 pkey 对象）。"""
+    last_error = None
+    for cls in (paramiko.Ed25519Key, paramiko.RSAKey, paramiko.ECDSAKey):
+        try:
+            return cls.from_private_key_file(path)
+        except paramiko.SSHException as exc:
+            last_error = exc
+    print(f"无法解析私钥 {path}: {last_error}", file=sys.stderr)
+    raise SystemExit(2)
+
 def main():
     env = load_env()
     host = require_env(env, "ANF_VM_HOST")
     port = int(env.get("ANF_VM_PORT", "22"))
     user = env.get("ANF_VM_USER", "anf-et")
-    password = require_env(env, "ANF_VM_PASSWORD")
+    password = env.get("ANF_VM_PASSWORD") or ""
+    key_path = (env.get("ANF_VM_SSH_KEY") or "").strip()
+    if not password and not key_path:
+        print("缺少认证配置：请在 .env 设置 ANF_VM_SSH_KEY 或 ANF_VM_PASSWORD",
+              file=sys.stderr)
+        return 2
     bind = env.get("ANF_VM_SSH_BIND") or ""
 
     if len(sys.argv) < 4:
@@ -36,7 +52,10 @@ def main():
         sock.bind((bind, 0))
     sock.connect((host, port))
     t = paramiko.Transport(sock)
-    t.connect(username=user, password=password)
+    if key_path:
+        t.connect(username=user, password=password or None, pkey=load_pkey(key_path))
+    else:
+        t.connect(username=user, password=password)
     client = paramiko.SSHClient()
     client._transport = t
     sftp = client.open_sftp()

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ANFAGENT-30: run a command on the VM via SSH (password auth, source-bound).
+"""ANFAGENT-30: run a command on the VM via SSH (key/password auth, source-bound).
 
 Reads connection params from the repo-root `.env`, binds the local socket to the
 etgame mesh IP so EasyTier routes the traffic, and runs `<cmd>` over SSH.
@@ -8,7 +8,8 @@ Supports sudo via `--sudo` (password from ANF_VM_SUDO_PASSWORD).
 Usage:
     python scripts/vm_ssh.py [-s|--sudo] [--user USER] "<command>"
 
-Reads only .env (already gitignored). Never prints the password.
+Auth: ANF_VM_SSH_KEY (private key path, preferred) or ANF_VM_PASSWORD.
+Reads only .env (already gitignored). Never prints credentials.
 """
 
 import socket
@@ -20,13 +21,32 @@ import paramiko
 from _anf_env import load_env, require_env
 
 
+def load_pkey(path):
+    """按常见算法尝试解析私钥文件（Transport.connect 只收 pkey 对象）。"""
+    last_error = None
+    for cls in (paramiko.Ed25519Key, paramiko.RSAKey, paramiko.ECDSAKey):
+        try:
+            return cls.from_private_key_file(path)
+        except paramiko.SSHException as exc:
+            last_error = exc
+    print(f"无法解析私钥 {path}: {last_error}", file=sys.stderr)
+    raise SystemExit(2)
+
 def main():
     env = load_env()
 
     host = require_env(env, "ANF_VM_HOST")
     port = int(env.get("ANF_VM_PORT", "22"))
     user = env.get("ANF_VM_USER", "anf-et")
-    password = require_env(env, "ANF_VM_PASSWORD")
+    password = env.get("ANF_VM_PASSWORD") or ""
+    key_path = (env.get("ANF_VM_SSH_KEY") or "").strip()
+    if not password and not key_path:
+        print(
+            "缺少认证配置：请在 .env 设置 ANF_VM_SSH_KEY（私钥路径，推荐）"
+            "或 ANF_VM_PASSWORD",
+            file=sys.stderr,
+        )
+        return 2
     bind = env.get("ANF_VM_SSH_BIND") or ""
     sudo_pass = env.get("ANF_VM_SUDO_PASSWORD") or password
 
@@ -65,7 +85,10 @@ def main():
 
     t = paramiko.Transport(sock)
     try:
-        t.connect(username=user, password=password)
+        if key_path:
+            t.connect(username=user, password=password or None, pkey=load_pkey(key_path))
+        else:
+            t.connect(username=user, password=password)
     except paramiko.AuthenticationException:
         print("SSH auth failed", file=sys.stderr)
         return 4

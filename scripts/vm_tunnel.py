@@ -28,6 +28,11 @@ def connect_transport() -> paramiko.Transport:
     port = int(env.get("ANF_VM_PORT", "22"))
     user = env.get("ANF_VM_USER", "anf-et")
     password = env.get("ANF_VM_PASSWORD") or None
+    key_path = (env.get("ANF_VM_SSH_KEY") or "").strip() or None
+    if not password and not key_path:
+        print("缺少认证配置：请在 .env 设置 ANF_VM_SSH_KEY 或 ANF_VM_PASSWORD",
+              file=sys.stderr)
+        raise SystemExit(2)
     source_bind = env.get("ANF_VM_SSH_BIND") or ""
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -44,6 +49,7 @@ def connect_transport() -> paramiko.Transport:
             username=user,
             sock=sock,
             password=password,
+            key_filename=key_path,
             look_for_keys=True,
             allow_agent=True,
             timeout=60,
