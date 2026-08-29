@@ -1,20 +1,19 @@
 //! ANFAGENT-30 M2：ACL 规则管理（管理员）。
 
 use axum::{
-    Json,
+    Json, Router,
     extract::{Path, State},
     http::StatusCode,
     routing::{delete, post},
-    Router,
 };
 use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use crate::FeatureFlags;
 use crate::anf::config::{AnfConfigTemplate, reconcile_network_device_configs};
 use crate::client_manager::ClientManager;
 use crate::db::{Db, anf_networks::NewAclRule};
-use crate::FeatureFlags;
 
 use super::{AdminSession, AppStateInner, HttpHandleError, other_error};
 
@@ -190,15 +189,12 @@ async fn list(
     axum::Extension(db): axum::Extension<Db>,
     Path(id): Path<String>,
 ) -> Result<Json<Vec<RuleJson>>, HttpHandleError> {
-    let rules = db
-        .list_acl_rules(&id)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json::from(other_error(format!("{e:?}"))),
-            )
-        })?;
+    let rules = db.list_acl_rules(&id).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json::from(other_error(format!("{e:?}"))),
+        )
+    })?;
     Ok(Json(rules.into_iter().map(RuleJson::from).collect()))
 }
 

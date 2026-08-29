@@ -1,8 +1,8 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod elevate;
 mod anf_config;
+mod elevate;
 
 use anyhow::Context;
 #[cfg(target_os = "android")]
@@ -112,8 +112,7 @@ fn anf_load_config() -> Result<String, String> {
 /// ANF 首屏：保存本地配置（非机密），返回实际写入路径。
 #[tauri::command]
 fn anf_save_config(cfg_json: String) -> Result<String, String> {
-    let cfg: anf_config::AppConfig =
-        serde_json::from_str(&cfg_json).map_err(|e| e.to_string())?;
+    let cfg: anf_config::AppConfig = serde_json::from_str(&cfg_json).map_err(|e| e.to_string())?;
     let path = anf_config::save_config(&cfg)?;
     Ok(path.to_string_lossy().to_string())
 }

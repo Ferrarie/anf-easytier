@@ -6,12 +6,11 @@ use std::collections::BTreeSet;
 
 use chrono::{DateTime, FixedOffset};
 use easytier::proto::acl::{
-    Action, AclV1, Chain, ChainType, GroupIdentity, GroupInfo, Protocol, Rule,
+    AclV1, Action, Chain, ChainType, GroupIdentity, GroupInfo, Protocol, Rule,
 };
 use rand::Rng;
 use sea_orm::{
-    ColumnTrait, DbErr, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    ColumnTrait, DbErr, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use uuid::Uuid;
 
@@ -207,7 +206,10 @@ impl Db {
             }
         };
 
-        let id = format!("{NET_ID_PREFIX}{}", &Uuid::new_v4().simple().to_string()[..8]);
+        let id = format!(
+            "{NET_ID_PREFIX}{}",
+            &Uuid::new_v4().simple().to_string()[..8]
+        );
         let m = network_instances::ActiveModel {
             id: Set(id.clone()),
             name: Set(name.trim().to_string()),
@@ -215,7 +217,9 @@ impl Db {
             created_at: Set(now()),
             updated_at: Set(now()),
         };
-        network_instances::Entity::insert(m).exec(self.orm_db()).await?;
+        network_instances::Entity::insert(m)
+            .exec(self.orm_db())
+            .await?;
         self.get_network(&id)
             .await?
             .ok_or_else(|| AnfNetError::InvalidInput("网络实例创建后未找到".to_string()))
@@ -272,12 +276,12 @@ impl Db {
     ) -> Result<Vec<entity::devices::Model>, DbErr> {
         use entity::{device_networks, devices};
 
-        Ok(devices::Entity::find()
+        devices::Entity::find()
             .inner_join(device_networks::Entity)
             .filter(device_networks::Column::NetworkInstId.eq(network_id))
             .filter(devices::Column::Status.eq(DEVICE_STATUS_APPROVED))
             .all(self.orm_db())
-            .await?)
+            .await
     }
 
     // ===== tag =====
@@ -316,7 +320,11 @@ impl Db {
     pub async fn delete_tag(&self, id: i32) -> Result<(), AnfNetError> {
         use entity::{device_tags, tags};
 
-        if tags::Entity::find_by_id(id).one(self.orm_db()).await?.is_none() {
+        if tags::Entity::find_by_id(id)
+            .one(self.orm_db())
+            .await?
+            .is_none()
+        {
             return Err(AnfNetError::TagNotFound);
         }
         let tag = tags::Entity::find_by_id(id)
@@ -447,8 +455,8 @@ impl Db {
 
     /// ANF 管理统计（Dashboard 数据源）。
     pub async fn anf_stats(&self) -> Result<AnfStats, DbErr> {
-        use entity::{acl_rules, devices, network_instances, tags};
         use crate::db::anf::DeviceStatus;
+        use entity::{acl_rules, devices, network_instances, tags};
 
         let all = devices::Entity::find().all(self.orm_db()).await?;
         let count = |status: DeviceStatus| {
@@ -519,10 +527,16 @@ impl Db {
     pub async fn delete_acl_rule(&self, id: i32) -> Result<(), AnfNetError> {
         use entity::acl_rules;
 
-        if acl_rules::Entity::find_by_id(id).one(self.orm_db()).await?.is_none() {
+        if acl_rules::Entity::find_by_id(id)
+            .one(self.orm_db())
+            .await?
+            .is_none()
+        {
             return Err(AnfNetError::RuleNotFound);
         }
-        acl_rules::Entity::delete_by_id(id).exec(self.orm_db()).await?;
+        acl_rules::Entity::delete_by_id(id)
+            .exec(self.orm_db())
+            .await?;
         Ok(())
     }
 
@@ -689,12 +703,14 @@ mod tests {
         let db = Db::memory_db().await;
         let admin = admin_user(&db).await;
 
-        let net = db.create_network("办公网", Some("10.10.0.0/24".to_string())).await.unwrap();
+        let net = db
+            .create_network("办公网", Some("10.10.0.0/24".to_string()))
+            .await
+            .unwrap();
         assert!(net.id.starts_with(NET_ID_PREFIX));
         assert_eq!(db.list_networks().await.unwrap().len(), 1);
 
-        register_approved_device(&db, admin, uuid::Uuid::new_v4(), &["办公"], &[&net.id])
-            .await;
+        register_approved_device(&db, admin, uuid::Uuid::new_v4(), &["办公"], &[&net.id]).await;
         let err = db.delete_network(&net.id).await.unwrap_err();
         assert!(matches!(err, AnfNetError::NetworkInUse));
 
@@ -711,10 +727,18 @@ mod tests {
         let net = db.create_network("pending网", None).await.unwrap();
         // 用邀请码注册一个 pending 设备，并只给它分配该网络（尚未放行）。
         let invite = db.generate_invite(admin, 5, None).await.unwrap();
-        let device = db.register_device(&invite.code, uuid::Uuid::new_v4()).await.unwrap();
-        db.update_device(device.id, None, Some(vec!["办公".to_string()]), Some(vec![net.id.clone()]))
+        let device = db
+            .register_device(&invite.code, uuid::Uuid::new_v4())
             .await
             .unwrap();
+        db.update_device(
+            device.id,
+            None,
+            Some(vec!["办公".to_string()]),
+            Some(vec![net.id.clone()]),
+        )
+        .await
+        .unwrap();
 
         // 成员数（仅 approved）为 0，删除不应被 pending 分配阻塞。
         assert_eq!(db.list_network_devices(&net.id).await.unwrap().len(), 0);
@@ -812,10 +836,7 @@ mod tests {
 
         // ACL 规则 JSON 级联
         let rules = db.list_acl_rules(&net.id).await.unwrap();
-        let updated = rules
-            .iter()
-            .find(|r| r.id == rule.id)
-            .expect("rule exists");
+        let updated = rules.iter().find(|r| r.id == rule.id).expect("rule exists");
         assert_eq!(updated.source_tags, vec_to_json(&["办公区".to_string()]));
         assert_eq!(
             updated.destination_tags,
@@ -878,7 +899,10 @@ mod tests {
         assert_eq!(db.list_tags().await.unwrap().len(), 1);
 
         let invite = db.generate_invite(admin, 5, None).await.unwrap();
-        let d = db.register_device(&invite.code, uuid::Uuid::new_v4()).await.unwrap();
+        let d = db
+            .register_device(&invite.code, uuid::Uuid::new_v4())
+            .await
+            .unwrap();
         db.update_device(d.id, None, Some(vec!["办公".to_string()]), None)
             .await
             .unwrap();
@@ -886,7 +910,9 @@ mod tests {
         let err = db.delete_tag(tag.id).await.unwrap_err();
         assert!(matches!(err, AnfNetError::TagInUse));
 
-        db.update_device(d.id, None, Some(vec![]), None).await.unwrap();
+        db.update_device(d.id, None, Some(vec![]), None)
+            .await
+            .unwrap();
         db.delete_tag(tag.id).await.unwrap();
         assert!(db.list_tags().await.unwrap().is_empty());
     }
@@ -941,10 +967,15 @@ mod tests {
         let admin = admin_user(&db).await;
         let net = db.create_network("n", None).await.unwrap();
 
-        register_approved_device(&db, admin, uuid::Uuid::new_v4(), &["办公", "mac"], &[&net.id])
-            .await;
-        register_approved_device(&db, admin, uuid::Uuid::new_v4(), &["服务器"], &[&net.id])
-            .await;
+        register_approved_device(
+            &db,
+            admin,
+            uuid::Uuid::new_v4(),
+            &["办公", "mac"],
+            &[&net.id],
+        )
+        .await;
+        register_approved_device(&db, admin, uuid::Uuid::new_v4(), &["服务器"], &[&net.id]).await;
 
         let acl = db
             .compile_network_acl(&net.id, &["mac".to_string()])
@@ -979,10 +1010,19 @@ mod tests {
         high.action = "drop".to_string();
         db.create_acl_rule(&high).await.unwrap();
 
-        register_approved_device(&db, admin, uuid::Uuid::new_v4(), &["办公", "服务器"], &[&net.id])
-            .await;
+        register_approved_device(
+            &db,
+            admin,
+            uuid::Uuid::new_v4(),
+            &["办公", "服务器"],
+            &[&net.id],
+        )
+        .await;
 
-        let acl = db.compile_network_acl(&net.id, &["办公".to_string()]).await.unwrap();
+        let acl = db
+            .compile_network_acl(&net.id, &["办公".to_string()])
+            .await
+            .unwrap();
         let rules = &acl.chains[0].rules;
         assert_eq!(rules.len(), 2);
         assert_eq!(rules[0].name, "high");
@@ -1007,10 +1047,15 @@ mod tests {
         disabled.enabled = false;
         db.create_acl_rule(&disabled).await.unwrap();
 
-        register_approved_device(&db, admin, uuid::Uuid::new_v4(), &["only-other"], &[&other.id])
-            .await;
-        register_approved_device(&db, admin, uuid::Uuid::new_v4(), &["办公"], &[&net.id])
-            .await;
+        register_approved_device(
+            &db,
+            admin,
+            uuid::Uuid::new_v4(),
+            &["only-other"],
+            &[&other.id],
+        )
+        .await;
+        register_approved_device(&db, admin, uuid::Uuid::new_v4(), &["办公"], &[&net.id]).await;
 
         let acl = db.compile_network_acl(&net.id, &[]).await.unwrap();
         assert!(acl.chains[0].rules.is_empty());
@@ -1057,7 +1102,10 @@ mod tests {
         assert_eq!(saved.priority, 7);
         assert_eq!(saved.action, "drop");
 
-        let err = db.update_acl_rule(9999, &new_rule(&net.id)).await.unwrap_err();
+        let err = db
+            .update_acl_rule(9999, &new_rule(&net.id))
+            .await
+            .unwrap_err();
         assert!(matches!(err, AnfNetError::RuleNotFound));
     }
 }

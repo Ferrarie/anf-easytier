@@ -769,14 +769,12 @@ mod tests {
             ip_peer: HashMap::from([(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 2)), 8u32)]),
         };
 
-        let allowed = filter.process_packet_with_acl(
-            &outbound_data_packet(),
-            false,
-            None,
-            |_| false,
-            &route,
+        let allowed =
+            filter.process_packet_with_acl(&outbound_data_packet(), false, None, |_| false, &route);
+        assert!(
+            allowed,
+            "目标 peer 未知时按 IP 回退解析组，office->office 应放行"
         );
-        assert!(allowed, "目标 peer 未知时按 IP 回退解析组，office->office 应放行");
     }
 
     #[tokio::test]
@@ -790,13 +788,8 @@ mod tests {
             ip_peer: HashMap::new(),
         };
 
-        let allowed = filter.process_packet_with_acl(
-            &outbound_data_packet(),
-            false,
-            None,
-            |_| false,
-            &route,
-        );
+        let allowed =
+            filter.process_packet_with_acl(&outbound_data_packet(), false, None, |_| false, &route);
         assert!(!allowed, "目标组未知时应默认拒绝");
     }
 }

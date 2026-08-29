@@ -131,10 +131,12 @@ impl AppConfig {
             enable_compression: env::var("ENABLE_COMPRESSION")
                 .map(|s| s.parse().unwrap_or(true))
                 .unwrap_or(true),
-            secret_key: env::var("SECRET_KEY")
-                .unwrap_or_else(|_| Self::secret_or_dev_default("SECRET_KEY", "default-secret-key")),
-            jwt_secret: env::var("JWT_SECRET")
-                .unwrap_or_else(|_| Self::secret_or_dev_default("JWT_SECRET", "default-jwt-secret")),
+            secret_key: env::var("SECRET_KEY").unwrap_or_else(|_| {
+                Self::secret_or_dev_default("SECRET_KEY", "default-secret-key")
+            }),
+            jwt_secret: env::var("JWT_SECRET").unwrap_or_else(|_| {
+                Self::secret_or_dev_default("JWT_SECRET", "default-jwt-secret")
+            }),
             admin_password: env::var("ADMIN_PASSWORD")
                 .unwrap_or_else(|_| Self::secret_or_dev_default("ADMIN_PASSWORD", "admin123")),
         };

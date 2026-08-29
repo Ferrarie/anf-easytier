@@ -4,8 +4,8 @@
 
 use chrono::{DateTime, FixedOffset};
 use sea_orm::{
-    ColumnTrait, DbErr, EntityTrait, IntoActiveModel, JoinType, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
+    ColumnTrait, DbErr, EntityTrait, IntoActiveModel, JoinType, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
 };
 use uuid::Uuid;
 
@@ -149,7 +149,10 @@ impl Db {
         use entity::invite_codes;
         invite_codes::Entity::update_many()
             .filter(invite_codes::Column::Id.eq(id))
-            .col_expr(invite_codes::Column::Enabled, sea_orm::prelude::Expr::value(false))
+            .col_expr(
+                invite_codes::Column::Enabled,
+                sea_orm::prelude::Expr::value(false),
+            )
             .exec(self.orm_db())
             .await?;
         Ok(())
@@ -174,10 +177,10 @@ impl Db {
         if !invite.enabled {
             return Err(AnfError::InviteNotFound);
         }
-        if let Some(expires_at) = invite.expires_at {
-            if expires_at < now() {
-                return Err(AnfError::InviteExpired);
-            }
+        if let Some(expires_at) = invite.expires_at
+            && expires_at < now()
+        {
+            return Err(AnfError::InviteExpired);
         }
         if invite.used_count >= invite.max_uses {
             return Err(AnfError::InviteUsedUp);
@@ -227,7 +230,9 @@ impl Db {
     }
 
     pub async fn get_device(&self, id: i32) -> Result<Option<entity::devices::Model>, DbErr> {
-        entity::devices::Entity::find_by_id(id).one(self.orm_db()).await
+        entity::devices::Entity::find_by_id(id)
+            .one(self.orm_db())
+            .await
     }
 
     pub async fn get_device_by_machine_id(
@@ -271,7 +276,9 @@ impl Db {
             .filter(device_networks::Column::DeviceId.eq(id))
             .exec(self.orm_db())
             .await?;
-        let res = devices::Entity::delete_by_id(id).exec(self.orm_db()).await?;
+        let res = devices::Entity::delete_by_id(id)
+            .exec(self.orm_db())
+            .await?;
         Ok(res.rows_affected > 0)
     }
 
@@ -397,9 +404,7 @@ impl Db {
         }
 
         txn.commit().await?;
-        self.get_device(id)
-            .await?
-            .ok_or(AnfError::DeviceNotFound)
+        self.get_device(id).await?.ok_or(AnfError::DeviceNotFound)
     }
 
     pub async fn list_device_tags(&self, device_id: i32) -> Result<Vec<String>, DbErr> {
@@ -616,9 +621,7 @@ impl Db {
             ..Default::default()
         };
         updates.totp_fail_count = Set(new_count as i32);
-        if let Some(until) =
-            crate::anf::two_factor::lock_until_after_fail(new_count, now_ts)
-        {
+        if let Some(until) = crate::anf::two_factor::lock_until_after_fail(new_count, now_ts) {
             updates.totp_lock_until = Set(Some(until));
             new_lock = Some(until);
         }
@@ -631,8 +634,14 @@ impl Db {
         use entity::users;
         users::Entity::update_many()
             .filter(users::Column::Id.eq(user_id))
-            .col_expr(users::Column::TotpFailCount, sea_orm::prelude::Expr::value(0))
-            .col_expr(users::Column::TotpLockUntil, sea_orm::prelude::Expr::value(None::<i64>))
+            .col_expr(
+                users::Column::TotpFailCount,
+                sea_orm::prelude::Expr::value(0),
+            )
+            .col_expr(
+                users::Column::TotpLockUntil,
+                sea_orm::prelude::Expr::value(None::<i64>),
+            )
             .exec(self.orm_db())
             .await?;
         Ok(())
@@ -651,41 +660,54 @@ impl Db {
                 users::Column::TotpSecretEncrypted,
                 sea_orm::prelude::Expr::value(secret_encrypted),
             )
-            .col_expr(users::Column::TotpEnabled, sea_orm::prelude::Expr::value(false))
-            .col_expr(users::Column::TotpLastStep, sea_orm::prelude::Expr::value(None::<i64>))
+            .col_expr(
+                users::Column::TotpEnabled,
+                sea_orm::prelude::Expr::value(false),
+            )
+            .col_expr(
+                users::Column::TotpLastStep,
+                sea_orm::prelude::Expr::value(None::<i64>),
+            )
             .exec(self.orm_db())
             .await?;
         Ok(())
     }
 
     /// 绑定验证通过：启用 TOTP 并记录本次窗口（防重放基线）
-    pub async fn enable_totp(
-        &self,
-        user_id: UserIdInDb,
-        last_step: i64,
-    ) -> anyhow::Result<()> {
+    pub async fn enable_totp(&self, user_id: UserIdInDb, last_step: i64) -> anyhow::Result<()> {
         use entity::users;
         users::Entity::update_many()
             .filter(users::Column::Id.eq(user_id))
-            .col_expr(users::Column::TotpEnabled, sea_orm::prelude::Expr::value(true))
-            .col_expr(users::Column::TotpLastStep, sea_orm::prelude::Expr::value(last_step))
-            .col_expr(users::Column::TotpFailCount, sea_orm::prelude::Expr::value(0))
-            .col_expr(users::Column::TotpLockUntil, sea_orm::prelude::Expr::value(None::<i64>))
+            .col_expr(
+                users::Column::TotpEnabled,
+                sea_orm::prelude::Expr::value(true),
+            )
+            .col_expr(
+                users::Column::TotpLastStep,
+                sea_orm::prelude::Expr::value(last_step),
+            )
+            .col_expr(
+                users::Column::TotpFailCount,
+                sea_orm::prelude::Expr::value(0),
+            )
+            .col_expr(
+                users::Column::TotpLockUntil,
+                sea_orm::prelude::Expr::value(None::<i64>),
+            )
             .exec(self.orm_db())
             .await?;
         Ok(())
     }
 
     /// 登录验证成功后更新防重放窗口基线
-    pub async fn set_2fa_last_step(
-        &self,
-        user_id: UserIdInDb,
-        step: i64,
-    ) -> anyhow::Result<()> {
+    pub async fn set_2fa_last_step(&self, user_id: UserIdInDb, step: i64) -> anyhow::Result<()> {
         use entity::users;
         users::Entity::update_many()
             .filter(users::Column::Id.eq(user_id))
-            .col_expr(users::Column::TotpLastStep, sea_orm::prelude::Expr::value(step))
+            .col_expr(
+                users::Column::TotpLastStep,
+                sea_orm::prelude::Expr::value(step),
+            )
             .exec(self.orm_db())
             .await?;
         Ok(())
@@ -700,10 +722,22 @@ impl Db {
                 users::Column::TotpSecretEncrypted,
                 sea_orm::prelude::Expr::value(None::<String>),
             )
-            .col_expr(users::Column::TotpEnabled, sea_orm::prelude::Expr::value(false))
-            .col_expr(users::Column::TotpFailCount, sea_orm::prelude::Expr::value(0))
-            .col_expr(users::Column::TotpLockUntil, sea_orm::prelude::Expr::value(None::<i64>))
-            .col_expr(users::Column::TotpLastStep, sea_orm::prelude::Expr::value(None::<i64>))
+            .col_expr(
+                users::Column::TotpEnabled,
+                sea_orm::prelude::Expr::value(false),
+            )
+            .col_expr(
+                users::Column::TotpFailCount,
+                sea_orm::prelude::Expr::value(0),
+            )
+            .col_expr(
+                users::Column::TotpLockUntil,
+                sea_orm::prelude::Expr::value(None::<i64>),
+            )
+            .col_expr(
+                users::Column::TotpLastStep,
+                sea_orm::prelude::Expr::value(None::<i64>),
+            )
             .exec(self.orm_db())
             .await?;
         Ok(())
@@ -764,29 +798,32 @@ impl Db {
 
         if let Some(d) = existing {
             // 仅当调用方提供了非空昵称且与当前不同时才更新显示名。
-            if let Some(name) = display_name {
-                if !name.is_empty() && name != d.display_name {
-                    let mut m = d.into_active_model();
-                    m.display_name = Set(name.to_string());
-                    m.updated_at = Set(now());
-                    devices::Entity::update(m).exec(self.orm_db()).await
-                        .map_err(AnfError::Db)?;
-                    return self.get_device_by_machine_id(machine_id).await
-                        .map_err(AnfError::Db)?
-                        .ok_or(AnfError::DeviceNotFound);
-                }
+            if let Some(name) = display_name
+                && !name.is_empty()
+                && name != d.display_name
+            {
+                let mut m = d.into_active_model();
+                m.display_name = Set(name.to_string());
+                m.updated_at = Set(now());
+                devices::Entity::update(m)
+                    .exec(self.orm_db())
+                    .await
+                    .map_err(AnfError::Db)?;
+                return self
+                    .get_device_by_machine_id(machine_id)
+                    .await
+                    .map_err(AnfError::Db)?
+                    .ok_or(AnfError::DeviceNotFound);
             }
             return Ok(d);
         }
 
         let m = devices::ActiveModel {
             machine_id: Set(machine.clone()),
-            display_name: Set(
-                display_name
-                    .filter(|n| !n.is_empty())
-                    .map(str::to_string)
-                    .unwrap_or_else(|| default_display_name(machine_id)),
-            ),
+            display_name: Set(display_name
+                .filter(|n| !n.is_empty())
+                .map(str::to_string)
+                .unwrap_or_else(|| default_display_name(machine_id))),
             status: Set(DEVICE_STATUS_PENDING.to_string()),
             approved_by: Set(None),
             approved_at: Set(None),
@@ -794,7 +831,9 @@ impl Db {
             updated_at: Set(now()),
             ..Default::default()
         };
-        let res = devices::Entity::insert(m).exec(self.orm_db()).await
+        let res = devices::Entity::insert(m)
+            .exec(self.orm_db())
+            .await
             .map_err(AnfError::Db)?;
         devices::Entity::find_by_id(res.last_insert_id)
             .one(self.orm_db())
@@ -864,12 +903,12 @@ mod tests {
         let db = Db::memory_db().await;
         let admin = admin_user(&db).await;
         let invite = db.generate_invite(admin, 1, None).await.unwrap();
-        let d1 = db
+        let d1 = db.register_device(&invite.code, machine()).await.unwrap();
+        assert_eq!(d1.status, DEVICE_STATUS_PENDING);
+        let err = db
             .register_device(&invite.code, machine())
             .await
-            .unwrap();
-        assert_eq!(d1.status, DEVICE_STATUS_PENDING);
-        let err = db.register_device(&invite.code, machine()).await.unwrap_err();
+            .unwrap_err();
         assert!(matches!(err, AnfError::InviteUsedUp));
     }
 
@@ -878,11 +917,11 @@ mod tests {
         let db = Db::memory_db().await;
         let admin = admin_user(&db).await;
         let past = chrono::Local::now().fixed_offset() - chrono::Duration::seconds(60);
-        let invite = db
-            .generate_invite(admin, 5, Some(past))
+        let invite = db.generate_invite(admin, 5, Some(past)).await.unwrap();
+        let err = db
+            .register_device(&invite.code, machine())
             .await
-            .unwrap();
-        let err = db.register_device(&invite.code, machine()).await.unwrap_err();
+            .unwrap_err();
         assert!(matches!(err, AnfError::InviteExpired));
     }
 
@@ -892,7 +931,10 @@ mod tests {
         let admin = admin_user(&db).await;
         let invite = db.generate_invite(admin, 5, None).await.unwrap();
         db.disable_invite(invite.id).await.unwrap();
-        let err = db.register_device(&invite.code, machine()).await.unwrap_err();
+        let err = db
+            .register_device(&invite.code, machine())
+            .await
+            .unwrap_err();
         assert!(matches!(err, AnfError::InviteNotFound));
     }
 
@@ -927,7 +969,10 @@ mod tests {
         assert_eq!(approved.approved_by, Some(admin));
 
         let d3 = db.register_device(&invite.code, m).await.unwrap();
-        assert_eq!(d3.status, DEVICE_STATUS_APPROVED, "已放行设备重复注册不应降级");
+        assert_eq!(
+            d3.status, DEVICE_STATUS_APPROVED,
+            "已放行设备重复注册不应降级"
+        );
     }
 
     #[tokio::test]
@@ -1074,12 +1119,18 @@ mod tests {
     async fn ensure_device_registered_updates_display_name_and_is_idempotent() {
         let db = Db::memory_db().await;
         let m = machine();
-        let d1 = db.ensure_device_registered(m, Some("小白-办公室")).await.unwrap();
+        let d1 = db
+            .ensure_device_registered(m, Some("小白-办公室"))
+            .await
+            .unwrap();
         assert_eq!(d1.display_name, "小白-办公室");
         assert_eq!(d1.status, DEVICE_STATUS_PENDING);
 
         // 再登记同机器：状态不变，昵称更新
-        let d2 = db.ensure_device_registered(m, Some("小白-新名")).await.unwrap();
+        let d2 = db
+            .ensure_device_registered(m, Some("小白-新名"))
+            .await
+            .unwrap();
         assert_eq!(d2.id, d1.id);
         assert_eq!(d2.display_name, "小白-新名");
         assert_eq!(d2.status, DEVICE_STATUS_PENDING);
@@ -1090,10 +1141,18 @@ mod tests {
         let db = Db::memory_db().await;
         let admin = admin_user(&db).await;
         let m = machine();
-        let d = db.ensure_device_registered(m, Some("已放行")).await.unwrap();
-        db.set_device_status(d.id, DeviceStatus::Approved, admin).await.unwrap();
+        let d = db
+            .ensure_device_registered(m, Some("已放行"))
+            .await
+            .unwrap();
+        db.set_device_status(d.id, DeviceStatus::Approved, admin)
+            .await
+            .unwrap();
         // 再次登记不应降级
-        let d2 = db.ensure_device_registered(m, Some("改昵称")).await.unwrap();
+        let d2 = db
+            .ensure_device_registered(m, Some("改昵称"))
+            .await
+            .unwrap();
         assert_eq!(d2.status, DEVICE_STATUS_APPROVED);
         assert_eq!(d2.display_name, "改昵称");
         assert!(db.device_is_authorized(m).await.unwrap());
@@ -1131,7 +1190,10 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(updated.display_name, "我的 Mac");
-        assert_eq!(db.list_device_tags(d.id).await.unwrap(), vec!["mac", "办公"]);
+        assert_eq!(
+            db.list_device_tags(d.id).await.unwrap(),
+            vec!["mac", "办公"]
+        );
         assert_eq!(db.list_device_networks(d.id).await.unwrap(), vec!["net-a"]);
 
         db.update_device(d.id, None, Some(vec!["办公".to_string()]), Some(vec![]))

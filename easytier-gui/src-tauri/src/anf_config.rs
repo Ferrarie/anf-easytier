@@ -12,19 +12,14 @@ pub const SCHEMA_VERSION: u32 = 2;
 pub const CONFIG_FILE_NAME: &str = "config.toml";
 
 /// 邀请码状态。一次性邀请码：首次成功连接后置为 Used。
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum InviteStatus {
+    #[default]
     Pending,
     Approved,
     Used,
     Revoked,
-}
-
-impl Default for InviteStatus {
-    fn default() -> Self {
-        InviteStatus::Pending
-    }
 }
 
 /// 本地配置（非机密）。结构上不包含任何网络密钥/密码字段。
@@ -159,7 +154,9 @@ pub fn read_config_from(dir: &Path) -> AppConfig {
             let value: toml::Value =
                 toml::from_str(&text).unwrap_or_else(|_| toml::Value::Table(Default::default()));
             let value = migrate_value(value);
-            value.try_into::<AppConfig>().unwrap_or_else(|_| new_config())
+            value
+                .try_into::<AppConfig>()
+                .unwrap_or_else(|_| new_config())
         }
         Err(_) => new_config(),
     }
@@ -265,7 +262,10 @@ fn hardware_machine_id() -> Option<uuid::Uuid> {
                 format!("{seed}\nmacs={}", macs.join(","))
             }
         };
-        Some(uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, seed.as_bytes()))
+        Some(uuid::Uuid::new_v5(
+            &uuid::Uuid::NAMESPACE_OID,
+            seed.as_bytes(),
+        ))
     }
 }
 
@@ -404,7 +404,7 @@ mod tests {
         cfg.profiles = vec![
             AnfProfile {
                 name: Some("中心A".to_string()),
-            server_address: Some("udp://127.0.0.1:22020/admin".to_string()),
+                server_address: Some("udp://127.0.0.1:22020/admin".to_string()),
                 nickname: Some("办公室".to_string()),
                 network_name: Some("anf-m3".to_string()),
                 last_instance_id: Some("i1".to_string()),
@@ -453,7 +453,10 @@ last_instance_id = "i-abc"
         fs::write(config_path_in(&dir), v1).unwrap();
         let cfg = read_config_from(&dir);
         assert_eq!(cfg.schema_version, SCHEMA_VERSION);
-        assert_eq!(cfg.machine_id.as_deref(), Some("9f0fd0bf-2ff8-58aa-9b0b-9dd5840165bc"));
+        assert_eq!(
+            cfg.machine_id.as_deref(),
+            Some("9f0fd0bf-2ff8-58aa-9b0b-9dd5840165bc")
+        );
         assert_eq!(cfg.active_profile_index, 0);
         assert_eq!(cfg.profiles.len(), 1);
         assert_eq!(

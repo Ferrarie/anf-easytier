@@ -1,11 +1,10 @@
 //! ANFAGENT-30 M2：网络实例管理（管理员）。
 
 use axum::{
-    Json,
+    Json, Router,
     extract::Path,
     http::StatusCode,
     routing::{delete, get, post},
-    Router,
 };
 use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
@@ -110,7 +109,12 @@ async fn list_members(
 ) -> Result<Json<Vec<crate::restful::devices::DeviceJson>>, HttpHandleError> {
     use crate::restful::devices::DeviceJson;
 
-    if db.get_network(&id).await.map_err(convert_db_error)?.is_none() {
+    if db
+        .get_network(&id)
+        .await
+        .map_err(convert_db_error)?
+        .is_none()
+    {
         return Err((
             StatusCode::NOT_FOUND,
             Json::from(other_error("网络实例不存在")),

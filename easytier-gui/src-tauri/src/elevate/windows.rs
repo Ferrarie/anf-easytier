@@ -100,7 +100,7 @@ impl Command {
                 HWND(0),
                 w!("runas"),
                 &HSTRING::from(self.cmd.get_program()),
-                &HSTRING::from(parameters),
+                &parameters,
                 PCWSTR::null(),
                 SW_HIDE,
             )

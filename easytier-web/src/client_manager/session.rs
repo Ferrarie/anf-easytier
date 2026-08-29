@@ -505,9 +505,7 @@ impl SessionRpcService {
             .db()
             .ensure_device_registered(machine_id, Some(req.hostname.as_str()))
             .await
-            .with_context(|| {
-                format!("Failed to register device for machine-id: {machine_id}")
-            })?;
+            .with_context(|| format!("Failed to register device for machine-id: {machine_id}"))?;
 
         let authorized = storage
             .db()

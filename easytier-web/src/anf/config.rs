@@ -5,7 +5,7 @@
 
 use easytier::proto::{
     acl::Acl,
-    api::manage::{NetworkingMethod, NetworkConfig},
+    api::manage::{NetworkConfig, NetworkingMethod},
 };
 use sea_orm::DbErr;
 use uuid::Uuid;
@@ -69,9 +69,7 @@ pub enum AnfConfigError {
 /// (网络实例, 设备) → 托管配置 instance_id（确定性名字 UUID，重启不变；每设备唯一）。
 /// 用 md5 生成 v3 风格 UUID，避免引入 uuid v5/sha1 新依赖。
 fn instance_id_for_device_network(network_id: &str, machine_id: &Uuid) -> Uuid {
-    let digest = md5::compute(format!(
-        "anf://network/{network_id}/device/{machine_id}"
-    ));
+    let digest = md5::compute(format!("anf://network/{network_id}/device/{machine_id}"));
     let mut bytes = digest.0;
     bytes[6] = (bytes[6] & 0x0f) | 0x30; // version 3
     bytes[8] = (bytes[8] & 0x3f) | 0x80; // RFC 4122 variant
@@ -118,7 +116,8 @@ impl Db {
         let device_id = device.id;
         let device_tags = self.list_device_tags(device_id).await?;
         let network_ids = self.list_device_networks(device_id).await?;
-        self.allocate_device_virtual_ips(device_id, &network_ids).await?;
+        self.allocate_device_virtual_ips(device_id, &network_ids)
+            .await?;
 
         let mut configs = Vec::with_capacity(network_ids.len());
         for network_id in &network_ids {
@@ -147,9 +146,7 @@ impl Db {
                 // 多网卡/走 mesh 场景下让客户端按系统路由表选源接口，
                 // 避免 easytier 默认 bind_device=true 绑到“外部”网卡导致连不上中心
                 bind_device: Some(false),
-                acl: Some(Acl {
-                    acl_v1: Some(acl),
-                }),
+                acl: Some(Acl { acl_v1: Some(acl) }),
                 ..Default::default()
             };
             configs.push(ManagedNetworkConfig {
@@ -168,7 +165,11 @@ impl Db {
         network_ids: &[String],
     ) -> Result<(), AnfConfigError> {
         for network_id in network_ids {
-            if self.get_device_network_ip(device_id, network_id).await?.is_some() {
+            if self
+                .get_device_network_ip(device_id, network_id)
+                .await?
+                .is_some()
+            {
                 continue;
             }
             let cidr = self
@@ -343,11 +344,11 @@ mod tests {
                 parsed.networking_method,
                 Some(NetworkingMethod::Manual as i32)
             );
+            assert_eq!(parsed.peer_urls, vec!["tcp://127.0.0.1:11110".to_string()]);
             assert_eq!(
-                parsed.peer_urls,
-                vec!["tcp://127.0.0.1:11110".to_string()]
+                parsed.hostname.as_deref(),
+                Some(&machine_id.to_string()[..8])
             );
-            assert_eq!(parsed.hostname.as_deref(), Some(&machine_id.to_string()[..8]));
             assert!(parsed.virtual_ipv4.is_some(), "应分配虚拟 IP");
             assert_eq!(parsed.network_length, Some(24));
         }
@@ -418,7 +419,10 @@ mod tests {
         assert_eq!(configs.len(), 1);
         let cfg: NetworkConfig = serde_json::from_value(configs[0].network_config.clone()).unwrap();
         let acl = cfg.acl.unwrap().acl_v1.unwrap();
-        assert_eq!(acl.chains[0].default_action, easytier::proto::acl::Action::Drop as i32);
+        assert_eq!(
+            acl.chains[0].default_action,
+            easytier::proto::acl::Action::Drop as i32
+        );
         assert_eq!(acl.chains[0].rules.len(), 1);
         assert_eq!(
             acl.group.as_ref().unwrap().members,
@@ -433,7 +437,9 @@ mod tests {
         let net = db.create_network("办公网", None).await.unwrap();
         let invite = db.generate_invite(admin, 10, None).await.unwrap();
         let pending_machine = uuid::Uuid::new_v4();
-        db.register_device(&invite.code, pending_machine).await.unwrap();
+        db.register_device(&invite.code, pending_machine)
+            .await
+            .unwrap();
 
         let (configs, _) = db
             .generate_device_managed_configs(&pending_machine, &template())
@@ -580,7 +586,10 @@ mod tests {
         let ip1 = cfg1.virtual_ipv4.unwrap();
         let ip2 = cfg2.virtual_ipv4.unwrap();
         assert_ne!(ip1, ip2);
-        assert_ne!(c1[0].instance_id, c2[0].instance_id, "同网络不同设备 instance_id 必须唯一");
+        assert_ne!(
+            c1[0].instance_id, c2[0].instance_id,
+            "同网络不同设备 instance_id 必须唯一"
+        );
         assert!(ip1.starts_with("10.99.0."));
         assert!(ip2.starts_with("10.99.0."));
         assert_eq!(cfg1.network_length, Some(24));

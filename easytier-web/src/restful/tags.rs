@@ -3,17 +3,16 @@
 use std::sync::Arc;
 
 use axum::{
-    Json,
+    Json, Router,
     extract::{Path, State},
     http::StatusCode,
-    routing::{delete, patch, post},
-    Extension, Router,
+    routing::{delete, post},
 };
 use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
 
-use crate::db::{Db, entity};
 use crate::FeatureFlags;
+use crate::db::{Db, entity};
 
 use super::{AdminSession, AppStateInner, HttpHandleError, acl, convert_db_error, other_error};
 

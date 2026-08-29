@@ -1,6 +1,6 @@
+mod acl;
 mod auth;
 pub(crate) mod captcha;
-mod acl;
 mod center;
 mod devices;
 mod invites;
@@ -37,8 +37,8 @@ use tower_sessions::cookie::{Key, SameSite};
 use tower_sessions_sqlx_store::SqliteStore;
 use users::{AuthSession, Backend};
 
-use crate::FeatureFlags;
 use crate::CenterInfo;
+use crate::FeatureFlags;
 use crate::client_manager::ClientManager;
 use crate::client_manager::storage::StorageToken;
 use crate::db::{Db, UserIdInDb};
@@ -54,10 +54,7 @@ where
 {
     type Rejection = HttpHandleError;
 
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &S,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let session = users::AuthSession::from_request_parts(parts, state)
             .await
             .map_err(|e| {
@@ -67,10 +64,7 @@ where
                 )
             })?;
         let Some(user) = session.user.as_ref() else {
-            return Err((
-                StatusCode::UNAUTHORIZED,
-                other_error("未登录").into(),
-            ));
+            return Err((StatusCode::UNAUTHORIZED, other_error("未登录").into()));
         };
         let Some(db) = parts.extensions.get::<Db>().cloned() else {
             return Err((
@@ -78,7 +72,11 @@ where
                 other_error("DB 扩展缺失").into(),
             ));
         };
-        if !db.user_is_superuser(user.id()).await.map_err(convert_db_error)? {
+        if !db
+            .user_is_superuser(user.id())
+            .await
+            .map_err(convert_db_error)?
+        {
             return Err((
                 StatusCode::FORBIDDEN,
                 other_error("需要超级管理员权限").into(),
@@ -183,6 +181,7 @@ pub fn convert_db_error(e: DbErr) -> HttpHandleError {
 }
 
 impl RestfulServer {
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         bind_addr: SocketAddr,
         client_mgr: Arc<ClientManager>,

@@ -1,10 +1,9 @@
 //! ANFAGENT-30 M1：设备注册（公开）/ 审批与分配（管理员）。
 
 use axum::{
-    Json,
+    Json, Router,
     extract::{Path, Query, State},
     routing::{delete, get, post},
-    Router,
 };
 use axum_login::AuthUser;
 use chrono::{DateTime, FixedOffset};
@@ -12,12 +11,14 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::anf::config::{
-    AnfConfigTemplate, reconcile_device_configs, revoke_device_configs,
-};
-use crate::client_manager::ClientManager;
-use crate::db::{Db, anf::{AnfError, DeviceStatus}, entity};
 use crate::FeatureFlags;
+use crate::anf::config::{AnfConfigTemplate, reconcile_device_configs, revoke_device_configs};
+use crate::client_manager::ClientManager;
+use crate::db::{
+    Db,
+    anf::{AnfError, DeviceStatus},
+    entity,
+};
 
 use super::{AdminSession, AppStateInner, HttpHandleError, convert_db_error, other_error};
 
@@ -103,10 +104,7 @@ pub fn admin_router() -> Router<AppStateInner> {
         .route("/api/v1/devices/:id/approve", post(approve))
         .route("/api/v1/devices/:id/reject", post(reject))
         .route("/api/v1/devices/:id/kick", post(kick))
-        .route(
-            "/api/v1/devices/:id",
-            delete(remove).patch(update),
-        )
+        .route("/api/v1/devices/:id", delete(remove).patch(update))
 }
 
 async fn register(
@@ -116,7 +114,10 @@ async fn register(
     let machine_id: Uuid = req.machine_id.parse().map_err(|_| {
         (
             axum::http::StatusCode::BAD_REQUEST,
-            Json::from(other_error(format!("machine_id 不是合法 UUID: {}", req.machine_id))),
+            Json::from(other_error(format!(
+                "machine_id 不是合法 UUID: {}",
+                req.machine_id
+            ))),
         )
     })?;
     let device = db
@@ -238,13 +239,8 @@ async fn set_status_impl(
             .await
         }
         DeviceStatus::Rejected | DeviceStatus::Kicked => {
-            revoke_device_configs(
-                &client_mgr,
-                &db,
-                &feature_flags.anf_center_user,
-                machine_id,
-            )
-            .await
+            revoke_device_configs(&client_mgr, &db, &feature_flags.anf_center_user, machine_id)
+                .await
         }
         _ => Ok(()),
     };
@@ -327,19 +323,14 @@ async fn remove(
                 Json::from(other_error(format!("设备机器码非法: {e}"))),
             )
         })?;
-        revoke_device_configs(
-            &client_mgr,
-            &db,
-            &feature_flags.anf_center_user,
-            machine_id,
-        )
-        .await
-        .map_err(|e| {
-            (
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                Json::from(other_error(format!("撤销配置失败: {e}"))),
-            )
-        })?;
+        revoke_device_configs(&client_mgr, &db, &feature_flags.anf_center_user, machine_id)
+            .await
+            .map_err(|e| {
+                (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    Json::from(other_error(format!("撤销配置失败: {e}"))),
+                )
+            })?;
     }
     let removed = db.delete_device(id).await.map_err(convert_db_error)?;
     Ok(Json(serde_json::json!({ "removed": removed })))

@@ -55,11 +55,10 @@ pub fn current_step(unix_secs: i64) -> u64 {
 /// RFC 4226 §5.3 动态截断：取摘要末字节低 4 位为偏移，拼 31 位整数
 fn hotp_truncate(digest: &[u8]) -> u32 {
     let offset = (digest[digest.len() - 1] & 0x0f) as usize;
-    let bin = ((digest[offset] as u32 & 0x7f) << 24)
+    ((digest[offset] as u32 & 0x7f) << 24)
         | ((digest[offset + 1] as u32) << 16)
         | ((digest[offset + 2] as u32) << 8)
-        | (digest[offset + 3] as u32);
-    bin
+        | (digest[offset + 3] as u32)
 }
 
 /// HOTP（RFC 4226）：返回 31 位动态截断原始值
@@ -112,11 +111,7 @@ pub fn verify_code(
             continue;
         }
         let candidate = totp_at(&secret, step);
-        if candidate
-            .as_bytes()
-            .ct_eq(code.as_bytes())
-            .into()
-        {
+        if candidate.as_bytes().ct_eq(code.as_bytes()).into() {
             return Ok(Some(step));
         }
     }
@@ -209,20 +204,19 @@ pub fn otpauth_uri(secret_b32: &str, issuer: &str, account: &str) -> String {
 /// DB 同目录 `<db_path>.totp_key` 文件（不存在则生成 32B 随机数，hex 存储）。
 /// DB 备份单独泄露时不含密钥文件，secret 不直接暴露。
 pub fn load_master_key(db_path: &str) -> anyhow::Result<[u8; 32]> {
-    if let Ok(v) = std::env::var(MASTER_KEY_ENV) {
-        if !v.trim().is_empty() {
-            let digest = Sha256::digest(v.as_bytes());
-            let mut key = [0u8; 32];
-            key.copy_from_slice(&digest);
-            return Ok(key);
-        }
+    if let Ok(v) = std::env::var(MASTER_KEY_ENV)
+        && !v.trim().is_empty()
+    {
+        let digest = Sha256::digest(v.as_bytes());
+        let mut key = [0u8; 32];
+        key.copy_from_slice(&digest);
+        return Ok(key);
     }
 
     let key_path = format!("{}.totp_key", db_path);
     let path = Path::new(&key_path);
     if path.exists() {
-        let hex = std::fs::read_to_string(path)
-            .with_context(|| format!("读取 {key_path} 失败"))?;
+        let hex = std::fs::read_to_string(path).with_context(|| format!("读取 {key_path} 失败"))?;
         let bytes = HEXLOWER
             .decode(hex.trim().as_bytes())
             .with_context(|| format!("{key_path} 内容不是合法 hex"))?;
@@ -233,8 +227,7 @@ pub fn load_master_key(db_path: &str) -> anyhow::Result<[u8; 32]> {
 
     let mut key = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut key);
-    std::fs::write(path, HEXLOWER.encode(&key))
-        .with_context(|| format!("写入 {key_path} 失败"))?;
+    std::fs::write(path, HEXLOWER.encode(&key)).with_context(|| format!("写入 {key_path} 失败"))?;
     tracing::info!("已生成 TOTP 主密钥文件 {key_path}（请随服务器一同备份，勿单独泄露）");
     Ok(key)
 }
@@ -302,8 +295,14 @@ mod tests {
     fn verify_code_rejects_malformed_input() {
         let now = 1000;
         // 长度不对 / 非数字 / 非法 base32
-        assert_eq!(verify_code(RFC_SECRET_B32, "12345", now, None).unwrap(), None);
-        assert_eq!(verify_code(RFC_SECRET_B32, "12a456", now, None).unwrap(), None);
+        assert_eq!(
+            verify_code(RFC_SECRET_B32, "12345", now, None).unwrap(),
+            None
+        );
+        assert_eq!(
+            verify_code(RFC_SECRET_B32, "12a456", now, None).unwrap(),
+            None
+        );
         assert!(verify_code("!!not-base32!!", "123456", now, None).is_err());
     }
 

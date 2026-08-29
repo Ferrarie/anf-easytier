@@ -1,8 +1,8 @@
 // sea-orm-cli generate entity -u sqlite:./et.db -o easytier-web/src/db/entity/ --with-serde both --with-copy-enums
-#[allow(unused_imports)]
-pub mod entity;
 pub mod anf;
 pub mod anf_networks;
+#[allow(unused_imports)]
+pub mod entity;
 
 use easytier::common::config::{ConfigSource, NetworkConfig};
 use easytier_core::management::remote_client::{ListNetworkProps, Storage};

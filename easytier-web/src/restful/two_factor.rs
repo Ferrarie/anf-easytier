@@ -77,7 +77,10 @@ pub async fn clear_pending_2fa(session: &Session) {
 // ===== 错误辅助 =====
 
 fn server_error(e: impl std::fmt::Display) -> HttpHandleError {
-    (StatusCode::INTERNAL_SERVER_ERROR, other_error(format!("{e}")).into())
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        other_error(format!("{e}")).into(),
+    )
 }
 
 fn unauthorized(msg: impl ToString) -> HttpHandleError {
@@ -184,13 +187,13 @@ mod post_handlers {
         }
 
         let state = db.get_2fa_state(user_id).await.map_err(server_error)?;
-        if let Some(until) = state.lock_until {
-            if now < until {
-                return Err((
-                    StatusCode::TOO_MANY_REQUESTS,
-                    other_error(format!("尝试过于频繁，请 {} 秒后再试", until - now + 1)).into(),
-                ));
-            }
+        if let Some(until) = state.lock_until
+            && now < until
+        {
+            return Err((
+                StatusCode::TOO_MANY_REQUESTS,
+                other_error(format!("尝试过于频繁，请 {} 秒后再试", until - now + 1)).into(),
+            ));
         }
 
         // 已启用 2FA：必须验证动态码；未启用（superuser 强制绑定流程）：直接放行
@@ -199,13 +202,9 @@ mod post_handlers {
                 return Err(server_error("2FA 状态异常：已启用但缺少 secret"));
             };
             let secret = tf::decrypt_secret(key.key(), &encrypted).map_err(server_error)?;
-            let matched = tf::verify_code(
-                &secret,
-                &req.code,
-                tf::current_step(now),
-                state.last_step,
-            )
-            .map_err(server_error)?;
+            let matched =
+                tf::verify_code(&secret, &req.code, tf::current_step(now), state.last_step)
+                    .map_err(server_error)?;
             let Some(step) = matched else {
                 // 会话级：连续错 SESSION_MAX_FAILS 次作废半会话
                 let fails: i64 = session
@@ -220,7 +219,10 @@ mod post_handlers {
                 }
                 let _ = session.insert(PENDING_2FA_FAILS, fails).await;
                 // 账号级退避（知道密码也无法高频试码）
-                let new_lock = db.record_2fa_fail(user_id, now).await.map_err(server_error)?;
+                let new_lock = db
+                    .record_2fa_fail(user_id, now)
+                    .await
+                    .map_err(server_error)?;
                 let msg = match new_lock {
                     Some(until) => {
                         format!("动态码错误，已临时锁定 {} 秒", until - now)
@@ -250,7 +252,9 @@ mod post_handlers {
         let setup_required = !state.enabled;
         clear_pending_2fa(&session).await;
         tracing::info!("用户 {} 通过两步验证登录", user.id());
-        Ok(Json(serde_json::json!({ "setup_required": setup_required })))
+        Ok(Json(
+            serde_json::json!({ "setup_required": setup_required }),
+        ))
     }
 
     /// 生成 TOTP secret（绑定流程第一步；可重复调用覆盖旧 secret）
@@ -286,13 +290,13 @@ mod post_handlers {
         };
         let now = tf::unix_now();
         let state = db.get_2fa_state(user.id()).await.map_err(server_error)?;
-        if let Some(until) = state.lock_until {
-            if now < until {
-                return Err((
-                    StatusCode::TOO_MANY_REQUESTS,
-                    other_error(format!("尝试过于频繁，请 {} 秒后再试", until - now + 1)).into(),
-                ));
-            }
+        if let Some(until) = state.lock_until
+            && now < until
+        {
+            return Err((
+                StatusCode::TOO_MANY_REQUESTS,
+                other_error(format!("尝试过于频繁，请 {} 秒后再试", until - now + 1)).into(),
+            ));
         }
         let Some(encrypted) = state.secret_encrypted else {
             return Err((
@@ -304,7 +308,9 @@ mod post_handlers {
         let matched = tf::verify_code(&secret, &req.code, tf::current_step(now), None)
             .map_err(server_error)?;
         let Some(step) = matched else {
-            db.record_2fa_fail(user.id(), now).await.map_err(server_error)?;
+            db.record_2fa_fail(user.id(), now)
+                .await
+                .map_err(server_error)?;
             return Err(unauthorized("动态码错误"));
         };
         db.enable_totp(user.id(), step as i64)
@@ -332,27 +338,24 @@ mod post_handlers {
                 other_error("两步验证未启用").into(),
             ));
         }
-        if let Some(until) = state.lock_until {
-            if now < until {
-                return Err((
-                    StatusCode::TOO_MANY_REQUESTS,
-                    other_error(format!("尝试过于频繁，请 {} 秒后再试", until - now + 1)).into(),
-                ));
-            }
+        if let Some(until) = state.lock_until
+            && now < until
+        {
+            return Err((
+                StatusCode::TOO_MANY_REQUESTS,
+                other_error(format!("尝试过于频繁，请 {} 秒后再试", until - now + 1)).into(),
+            ));
         }
         let Some(encrypted) = state.secret_encrypted else {
             return Err(server_error("2FA 状态异常：已启用但缺少 secret"));
         };
         let secret = tf::decrypt_secret(key.key(), &encrypted).map_err(server_error)?;
-        let matched = tf::verify_code(
-            &secret,
-            &req.code,
-            tf::current_step(now),
-            state.last_step,
-        )
-        .map_err(server_error)?;
+        let matched = tf::verify_code(&secret, &req.code, tf::current_step(now), state.last_step)
+            .map_err(server_error)?;
         if matched.is_none() {
-            db.record_2fa_fail(user.id(), now).await.map_err(server_error)?;
+            db.record_2fa_fail(user.id(), now)
+                .await
+                .map_err(server_error)?;
             return Err(unauthorized("动态码错误"));
         }
         db.clear_totp(user.id()).await.map_err(server_error)?;
@@ -369,9 +372,7 @@ mod admin_handlers {
         AdminSession(_auth): AdminSession,
         Extension(db): Extension<Db>,
     ) -> Result<Json<Vec<AdminUserRow>>, HttpHandleError> {
-        Ok(Json(
-            db.list_users_with_2fa().await.map_err(server_error)?,
-        ))
+        Ok(Json(db.list_users_with_2fa().await.map_err(server_error)?))
     }
 
     /// 重置指定用户的两步验证（验证器丢失救援）
@@ -381,10 +382,7 @@ mod admin_handlers {
         Path(user_id): Path<i32>,
     ) -> Result<Json<serde_json::Value>, HttpHandleError> {
         if db.get_2fa_state(user_id).await.is_err() {
-            return Err((
-                StatusCode::NOT_FOUND,
-                other_error("用户不存在").into(),
-            ));
+            return Err((StatusCode::NOT_FOUND, other_error("用户不存在").into()));
         }
         db.clear_totp(user_id).await.map_err(server_error)?;
         tracing::info!("管理员重置了用户 {user_id} 的两步验证");

@@ -24,12 +24,12 @@ use easytier_core::{socket::SocketListener, tunnel::Tunnel};
 use easytier::tunnel::IpScheme;
 use mimalloc::MiMalloc;
 
+mod anf;
 mod client_manager;
 mod db;
 mod migrator;
 mod restful;
 mod webhook;
-mod anf;
 
 #[cfg(feature = "embed")]
 mod web;
@@ -49,11 +49,11 @@ fn load_anf_env_aliases() {
         ("ANF_ADMIN_USER", "ET_ANF_CENTER_USER"),
     ];
     for (src, dst) in ALIASES {
-        if std::env::var_os(dst).is_none() {
-            if let Ok(value) = std::env::var(src) {
-                // Rust 2024 中 env::set_var 为 unsafe；此处仅发生在启动早期、单线程阶段。
-                unsafe { std::env::set_var(dst, value) };
-            }
+        if std::env::var_os(dst).is_none()
+            && let Ok(value) = std::env::var(src)
+        {
+            // Rust 2024 中 env::set_var 为 unsafe；此处仅发生在启动早期、单线程阶段。
+            unsafe { std::env::set_var(dst, value) };
         }
     }
 }
@@ -272,11 +272,7 @@ pub struct FeatureFlags {
     pub anf_network_secret: Option<String>,
 
     /// ANF 中心 core peer 地址（如 tcp://<center-host>:11110；根 .env 的 ANF_CENTER_PEER_URL 会自动映射）。
-    #[arg(
-        long,
-        env = "ET_ANF_CENTER_PEER_URL",
-        help = "ANF 中心 core peer 地址"
-    )]
+    #[arg(long, env = "ET_ANF_CENTER_PEER_URL", help = "ANF 中心 core peer 地址")]
     pub anf_center_peer_url: Option<String>,
 
     /// ANF 设备统一使用的 config server token（= 用户名）。
@@ -371,7 +367,7 @@ pub struct CenterInfo {
 }
 
 impl CenterInfo {
-    pub fn from_cli(cli: &Cli) -> Self {
+    pub(crate) fn from_cli(cli: &Cli) -> Self {
         Self {
             version: EASYTIER_VERSION,
             api_server_port: cli.api_server_port,

@@ -3,8 +3,8 @@ use axum::{
     http::StatusCode,
     routing::{get, post, put},
 };
-use axum_login::login_required;
 use axum_login::AuthUser;
+use axum_login::login_required;
 use axum_messages::Message;
 use serde::{Deserialize, Serialize};
 use tower_sessions::Session;
@@ -113,7 +113,10 @@ mod post {
         // 两步验证：已启用 TOTP 的用户必须过动态码；superuser 强制策略下即使
         // 未绑定也走半会话（verify 放行后由前端强制引导绑定）
         let state = db.get_2fa_state(user.id()).await.map_err(|e| {
-            (StatusCode::INTERNAL_SERVER_ERROR, Json::from(other_error(format!("{e}"))))
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json::from(other_error(format!("{e}"))),
+            )
         })?;
         let is_superuser = db
             .user_is_superuser(user.id())
@@ -226,7 +229,10 @@ mod get {
             .await
             .map_err(convert_db_error)?;
         let enabled = db.is_2fa_enabled(user.id()).await.map_err(|e| {
-            (StatusCode::INTERNAL_SERVER_ERROR, Json::from(other_error(format!("{e}"))))
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json::from(other_error(format!("{e}"))),
+            )
         })?;
         Ok(Json(
             serde_json::json!({ "require_two_factor_setup": is_superuser && !enabled }),

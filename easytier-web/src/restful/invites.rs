@@ -1,11 +1,10 @@
 //! ANFAGENT-30 M1：邀请码管理（管理员）。
 
 use axum::{
-    Json,
+    Json, Router,
     extract::Path,
     http::StatusCode,
     routing::{delete, post},
-    Router,
 };
 use axum_login::AuthUser;
 use chrono::{DateTime, FixedOffset};
