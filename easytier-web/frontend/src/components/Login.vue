@@ -33,10 +33,15 @@ const onSubmit = async () => {
     let ret = await api.value?.login(credential);
     if (ret.success) {
         localStorage.setItem('apiHost', btoa(apiHost.value));
-        router.push({
-            name: 'dashboard',
-            params: { apiHost: btoa(apiHost.value) },
-        });
+        if (ret.require_2fa) {
+            // 已启用两步验证（或 superuser 强制策略）：进入动态码页
+            router.push({ name: 'twoFactor' });
+        } else {
+            router.push({
+                name: 'dashboard',
+                params: { apiHost: btoa(apiHost.value) },
+            });
+        }
     } else {
         toast.add({ severity: 'error', summary: 'Login Failed', detail: ret.message, life: 2000 });
     }

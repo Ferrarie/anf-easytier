@@ -9,6 +9,7 @@ mod networks;
 pub(crate) mod oidc;
 mod rpc;
 mod tags;
+mod two_factor;
 mod users;
 
 use std::{net::SocketAddr, sync::Arc};
@@ -81,6 +82,18 @@ where
             return Err((
                 StatusCode::FORBIDDEN,
                 other_error("需要超级管理员权限").into(),
+            ));
+        }
+        // superuser 强制两步验证：未绑定 TOTP 时拒绝访问后台（前端会引导完成绑定）
+        if !db.is_2fa_enabled(user.id()).await.map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                other_error(format!("{e}")).into(),
+            )
+        })? {
+            return Err((
+                StatusCode::FORBIDDEN,
+                other_error("需要先绑定两步验证").into(),
             ));
         }
         Ok(AdminSession(session))
@@ -285,6 +298,10 @@ impl RestfulServer {
         ),
         anyhow::Error,
     > {
+        // TOTP 主密钥：env ANF_TOTP_SECRET_KEY 优先，否则 DB 同目录 .totp_key 文件
+        let totp_key = two_factor::TotpKey::load(self.db.db_path())
+            .map_err(|e| anyhow::anyhow!("加载 TOTP 主密钥失败: {e}"))?;
+
         let listener = TcpListener::bind(self.bind_addr).await?;
 
         // Session layer.
@@ -360,6 +377,7 @@ impl RestfulServer {
             .merge(rpc::router())
             .route_layer(login_required!(Backend))
             .merge(auth::router().layer(Extension(self.feature_flags.clone())))
+            .merge(two_factor::router())
             .merge(oidc::router())
             .merge(devices::public_router())
             .with_state(self.client_mgr.clone())
@@ -372,6 +390,7 @@ impl RestfulServer {
             .layer(Extension(self.feature_flags.clone()))
             .layer(Extension(self.center_info.clone()))
             .layer(Extension(self.db.clone()))
+            .layer(Extension(totp_key))
             .layer(MessagesManagerLayer)
             .layer(auth_layer)
             .layer(tower_http::cors::CorsLayer::very_permissive())

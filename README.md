@@ -101,9 +101,17 @@
 - `POST|GET /api/v1/networks`、`DELETE /networks/:id`、`GET /networks/:id/devices`：网络管理
 - `POST|GET /api/v1/networks/:id/rules`、`DELETE /networks/:id/rules/:ruleId`：ACL
 - `POST|GET /api/v1/tags`、`DELETE /tags/:id`：tag 管理
+- `GET /api/v1/admin/users`、`POST /api/v1/admin/users/:id/reset-2fa`：用户管理与两步验证重置
 - `GET /api/v1/summary`、`GET /api/v1/sessions`、`PUT /api/v1/auth/password` 等
 
-前端页面：登录 / 注册 / 设备注册、Dashboard、设备列表（设备管理）、设备审批、邀请码、网络、tag、ACL 编辑器。
+两步验证（TOTP 2FA）接口：
+
+- `POST /api/v1/auth/login`：密码通过后，已启用 2FA 或 superuser（强制策略）返回 `{require_2fa: true}` 并建立 5 分钟"待二次验证"半会话
+- `GET /api/v1/auth/2fa/pending`、`POST /api/v1/auth/2fa/verify`：半会话探测 / 动态码校验（通过后建立正式会话）
+- `GET /api/v1/auth/2fa/status`、`POST /api/v1/auth/2fa/setup|enable|disable`：绑定 / 启用 / 关闭
+- 未绑定 2FA 的 superuser 访问任何管理接口返回 403（后端强制兜底）
+
+前端页面：登录 / 注册 / 设备注册、两步验证码、两步验证绑定、Dashboard、设备列表（设备管理）、设备审批、邀请码、网络、tag、ACL 编辑器、用户管理。
 
 ### 5.6 客户端 GUI（anf-easytier.exe）
 
@@ -115,6 +123,8 @@
 
 ## 6. 安全模型
 
+- **两步验证（TOTP）**：管理员（`superusers` 组）登录强制要求 TOTP 动态码（验证器 App，SHA1/6 位/30 秒），普通用户可在右上角用户菜单自愿开启；OIDC 登录豁免（由 IdP 负责多因素）。secret 以 AES-256-GCM 加密入库，主密钥取 `ANF_TOTP_SECRET_KEY`（未设置时自动生成 DB 同目录 `<db>.totp_key` 文件）。防爆破：半会话连续错 5 次作废 + 账号级失败退避（5 次锁 10s → 30s → 指数翻倍，封顶 15 分钟）。
+- **验证器丢失救援**：管理员可在「用户管理」页重置他人两步验证；唯一管理员被锁死时登服务器执行 `easytier-web reset-two-factor --username admin`。服务器时间漂移会导致动态码校验失败，请保持 NTP 同步。
 - **机器码授权**：`machine_id` 由网卡 + CPU 硬件推导，作为设备稳定授权单元。
 - **中心审批**：设备邀请码注册，管理员放行才下发配置；未放行设备无任何网络配置。
 - **网络隔离 + ACL 默认拒绝**：多网络实例硬隔离；跨网络默认不通；tag / ACL 规则默认 `drop`。

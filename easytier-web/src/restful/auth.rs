@@ -1,12 +1,16 @@
 use axum::{
-    Router,
+    Extension, Router,
     http::StatusCode,
     routing::{get, post, put},
 };
 use axum_login::login_required;
+use axum_login::AuthUser;
 use axum_messages::Message;
 use serde::{Deserialize, Serialize};
+use tower_sessions::Session;
 
+use crate::anf::two_factor as tf;
+use crate::db::Db;
 use crate::restful::users::Backend;
 
 use std::sync::Arc;
@@ -14,7 +18,8 @@ use std::sync::Arc;
 use crate::FeatureFlags;
 
 use super::{
-    AppStateInner,
+    AppStateInner, convert_db_error,
+    two_factor::set_pending_2fa,
     users::{AuthSession, Credentials},
 };
 
@@ -85,8 +90,10 @@ mod post {
 
     pub async fn login(
         mut auth_session: AuthSession,
+        session: Session,
+        Extension(db): Extension<Db>,
         Json(creds): Json<Credentials>,
-    ) -> Result<Json<Void>, HttpHandleError> {
+    ) -> Result<Json<serde_json::Value>, HttpHandleError> {
         let user = match auth_session.authenticate(creds.clone()).await {
             Ok(Some(user)) => user,
             Ok(None) => {
@@ -103,6 +110,20 @@ mod post {
             }
         };
 
+        // 两步验证：已启用 TOTP 的用户必须过动态码；superuser 强制策略下即使
+        // 未绑定也走半会话（verify 放行后由前端强制引导绑定）
+        let state = db.get_2fa_state(user.id()).await.map_err(|e| {
+            (StatusCode::INTERNAL_SERVER_ERROR, Json::from(other_error(format!("{e}"))))
+        })?;
+        let is_superuser = db
+            .user_is_superuser(user.id())
+            .await
+            .map_err(convert_db_error)?;
+        if state.enabled || is_superuser {
+            set_pending_2fa(&session, user.id(), tf::unix_now()).await;
+            return Ok(Json(serde_json::json!({ "require_2fa": true })));
+        }
+
         if let Err(e) = auth_session.login(&user).await {
             return Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -110,7 +131,7 @@ mod post {
             ));
         }
 
-        Ok(Void::default().into())
+        Ok(Json(serde_json::json!({})))
     }
 
     pub async fn register(
@@ -190,14 +211,25 @@ mod get {
 
     pub async fn check_login_status(
         auth_session: AuthSession,
-    ) -> Result<Json<Void>, HttpHandleError> {
-        if auth_session.user.is_some() {
-            Ok(Json(Void::default()))
-        } else {
-            Err((
+        Extension(db): Extension<Db>,
+    ) -> Result<Json<serde_json::Value>, HttpHandleError> {
+        let Some(user) = auth_session.user else {
+            return Err((
                 StatusCode::UNAUTHORIZED,
                 Json::from(other_error("Not logged in")),
-            ))
-        }
+            ));
+        };
+        // HTTP 语义不变（200 已登录 / 401 未登录），响应体供前端守卫判断
+        // superuser 是否需要强制绑定两步验证
+        let is_superuser = db
+            .user_is_superuser(user.id())
+            .await
+            .map_err(convert_db_error)?;
+        let enabled = db.is_2fa_enabled(user.id()).await.map_err(|e| {
+            (StatusCode::INTERNAL_SERVER_ERROR, Json::from(other_error(format!("{e}"))))
+        })?;
+        Ok(Json(
+            serde_json::json!({ "require_two_factor_setup": is_superuser && !enabled }),
+        ))
     }
 }

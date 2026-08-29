@@ -11,6 +11,12 @@ pub struct Model {
     #[sea_orm(unique)]
     pub username: String,
     pub password: String,
+    // ANF TOTP 两步验证（m20260829_000009）
+    pub totp_secret_encrypted: Option<String>,
+    pub totp_enabled: bool,
+    pub totp_fail_count: i32,
+    pub totp_lock_until: Option<i64>,
+    pub totp_last_step: Option<i64>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

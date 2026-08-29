@@ -18,6 +18,25 @@ pub const DEVICE_STATUS_KICKED: &str = "kicked";
 
 const SUPERUSERS_GROUP: &str = "superusers";
 
+/// 用户 TOTP 两步验证状态快照（users 表对应字段）
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TwoFactorState {
+    pub secret_encrypted: Option<String>,
+    pub enabled: bool,
+    pub fail_count: i64,
+    pub lock_until: Option<i64>,
+    pub last_step: Option<i64>,
+}
+
+/// 管理后台用户列表行
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AdminUserRow {
+    pub id: i32,
+    pub username: String,
+    pub is_superuser: bool,
+    pub totp_enabled: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeviceStatus {
     Pending,
@@ -556,6 +575,166 @@ impl Db {
         Ok(count > 0)
     }
 
+    // ===== ANF TOTP 两步验证（设计共识 2026-08-29）=====
+
+    /// 读取用户 TOTP 2FA 状态
+    pub async fn get_2fa_state(&self, user_id: UserIdInDb) -> anyhow::Result<TwoFactorState> {
+        use entity::users;
+        let u = users::Entity::find_by_id(user_id)
+            .one(self.orm_db())
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("用户不存在: {user_id}"))?;
+        Ok(TwoFactorState {
+            secret_encrypted: u.totp_secret_encrypted,
+            enabled: u.totp_enabled,
+            fail_count: u.totp_fail_count as i64,
+            lock_until: u.totp_lock_until,
+            last_step: u.totp_last_step,
+        })
+    }
+
+    /// 是否已启用 TOTP 2FA
+    pub async fn is_2fa_enabled(&self, user_id: UserIdInDb) -> anyhow::Result<bool> {
+        Ok(self.get_2fa_state(user_id).await?.enabled)
+    }
+
+    /// 记录一次 2FA 验证失败；每满 FAILS_PER_LOCK 次设置锁定截止时间并返回之
+    pub async fn record_2fa_fail(
+        &self,
+        user_id: UserIdInDb,
+        now_ts: i64,
+    ) -> anyhow::Result<Option<i64>> {
+        use entity::users;
+        let u = users::Entity::find_by_id(user_id)
+            .one(self.orm_db())
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("用户不存在: {user_id}"))?;
+        let new_count = u.totp_fail_count as i64 + 1;
+        let mut new_lock = None;
+        let mut updates = users::ActiveModel {
+            id: Set(user_id),
+            ..Default::default()
+        };
+        updates.totp_fail_count = Set(new_count as i32);
+        if let Some(until) =
+            crate::anf::two_factor::lock_until_after_fail(new_count, now_ts)
+        {
+            updates.totp_lock_until = Set(Some(until));
+            new_lock = Some(until);
+        }
+        users::Entity::update(updates).exec(self.orm_db()).await?;
+        Ok(new_lock)
+    }
+
+    /// 2FA 验证成功后清零失败计数与锁定状态
+    pub async fn clear_2fa_fail(&self, user_id: UserIdInDb) -> anyhow::Result<()> {
+        use entity::users;
+        users::Entity::update_many()
+            .filter(users::Column::Id.eq(user_id))
+            .col_expr(users::Column::TotpFailCount, sea_orm::prelude::Expr::value(0))
+            .col_expr(users::Column::TotpLockUntil, sea_orm::prelude::Expr::value(None::<i64>))
+            .exec(self.orm_db())
+            .await?;
+        Ok(())
+    }
+
+    /// 写入（覆盖）加密后的 TOTP secret，处于未启用状态（绑定流程第一步）
+    pub async fn set_totp_secret(
+        &self,
+        user_id: UserIdInDb,
+        secret_encrypted: String,
+    ) -> anyhow::Result<()> {
+        use entity::users;
+        users::Entity::update_many()
+            .filter(users::Column::Id.eq(user_id))
+            .col_expr(
+                users::Column::TotpSecretEncrypted,
+                sea_orm::prelude::Expr::value(secret_encrypted),
+            )
+            .col_expr(users::Column::TotpEnabled, sea_orm::prelude::Expr::value(false))
+            .col_expr(users::Column::TotpLastStep, sea_orm::prelude::Expr::value(None::<i64>))
+            .exec(self.orm_db())
+            .await?;
+        Ok(())
+    }
+
+    /// 绑定验证通过：启用 TOTP 并记录本次窗口（防重放基线）
+    pub async fn enable_totp(
+        &self,
+        user_id: UserIdInDb,
+        last_step: i64,
+    ) -> anyhow::Result<()> {
+        use entity::users;
+        users::Entity::update_many()
+            .filter(users::Column::Id.eq(user_id))
+            .col_expr(users::Column::TotpEnabled, sea_orm::prelude::Expr::value(true))
+            .col_expr(users::Column::TotpLastStep, sea_orm::prelude::Expr::value(last_step))
+            .col_expr(users::Column::TotpFailCount, sea_orm::prelude::Expr::value(0))
+            .col_expr(users::Column::TotpLockUntil, sea_orm::prelude::Expr::value(None::<i64>))
+            .exec(self.orm_db())
+            .await?;
+        Ok(())
+    }
+
+    /// 登录验证成功后更新防重放窗口基线
+    pub async fn set_2fa_last_step(
+        &self,
+        user_id: UserIdInDb,
+        step: i64,
+    ) -> anyhow::Result<()> {
+        use entity::users;
+        users::Entity::update_many()
+            .filter(users::Column::Id.eq(user_id))
+            .col_expr(users::Column::TotpLastStep, sea_orm::prelude::Expr::value(step))
+            .exec(self.orm_db())
+            .await?;
+        Ok(())
+    }
+
+    /// 完全重置用户 TOTP 2FA（管理员后台 / CLI 救援）
+    pub async fn clear_totp(&self, user_id: UserIdInDb) -> anyhow::Result<()> {
+        use entity::users;
+        users::Entity::update_many()
+            .filter(users::Column::Id.eq(user_id))
+            .col_expr(
+                users::Column::TotpSecretEncrypted,
+                sea_orm::prelude::Expr::value(None::<String>),
+            )
+            .col_expr(users::Column::TotpEnabled, sea_orm::prelude::Expr::value(false))
+            .col_expr(users::Column::TotpFailCount, sea_orm::prelude::Expr::value(0))
+            .col_expr(users::Column::TotpLockUntil, sea_orm::prelude::Expr::value(None::<i64>))
+            .col_expr(users::Column::TotpLastStep, sea_orm::prelude::Expr::value(None::<i64>))
+            .exec(self.orm_db())
+            .await?;
+        Ok(())
+    }
+
+    /// 管理后台用户列表：全部用户 + superusers 组标记 + 2FA 启用状态
+    pub async fn list_users_with_2fa(&self) -> anyhow::Result<Vec<AdminUserRow>> {
+        use entity::{groups, users, users_groups};
+        let all = users::Entity::find()
+            .order_by_asc(users::Column::Id)
+            .all(self.orm_db())
+            .await?;
+        let super_ids: std::collections::HashSet<i32> = users_groups::Entity::find()
+            .join(JoinType::InnerJoin, users_groups::Relation::Groups.def())
+            .filter(groups::Column::Name.eq(SUPERUSERS_GROUP))
+            .all(self.orm_db())
+            .await?
+            .into_iter()
+            .map(|ug| ug.user_id)
+            .collect();
+        Ok(all
+            .into_iter()
+            .map(|u| AdminUserRow {
+                id: u.id,
+                username: u.username,
+                is_superuser: super_ids.contains(&u.id),
+                totp_enabled: u.totp_enabled,
+            })
+            .collect())
+    }
+
     /// 设备授权判定：未登记设备视为传统模式放行；已登记设备仅 approved 放行。
     pub async fn device_is_authorized(&self, machine_id: Uuid) -> Result<bool, DbErr> {
         let d = self.get_device_by_machine_id(machine_id).await?;
@@ -971,5 +1150,97 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(err, AnfError::DeviceNotFound));
+    }
+
+    async fn make_superuser(db: &Db, name: &str) -> anyhow::Result<UserIdInDb> {
+        let uid = db.auto_create_user(name).await?.id;
+        let txn = db.orm_db().begin().await?;
+        Db::ensure_user_in_superusers_txn(&txn, uid).await?;
+        txn.commit().await?;
+        Ok(uid)
+    }
+
+    #[tokio::test]
+    async fn two_factor_state_defaults_and_lifecycle() {
+        let db = Db::memory_db().await;
+        let uid = admin_user(&db).await;
+
+        let st = db.get_2fa_state(uid).await.unwrap();
+        assert!(!st.enabled);
+        assert_eq!(st.secret_encrypted, None);
+        assert_eq!(st.fail_count, 0);
+        assert_eq!(st.lock_until, None);
+        assert!(!db.is_2fa_enabled(uid).await.unwrap());
+
+        // setup：写入加密 secret，处于未启用状态
+        db.set_totp_secret(uid, "ENC-SECRET".into()).await.unwrap();
+        let st = db.get_2fa_state(uid).await.unwrap();
+        assert_eq!(st.secret_encrypted.as_deref(), Some("ENC-SECRET"));
+        assert!(!st.enabled);
+
+        // enable：启用并记录防重放基线
+        db.enable_totp(uid, 123).await.unwrap();
+        assert!(db.is_2fa_enabled(uid).await.unwrap());
+        let st = db.get_2fa_state(uid).await.unwrap();
+        assert_eq!(st.last_step, Some(123));
+
+        // 登录成功推进重放基线
+        db.set_2fa_last_step(uid, 456).await.unwrap();
+        assert_eq!(db.get_2fa_state(uid).await.unwrap().last_step, Some(456));
+
+        // 重置：全部字段归零
+        db.clear_totp(uid).await.unwrap();
+        let st = db.get_2fa_state(uid).await.unwrap();
+        assert!(!st.enabled);
+        assert_eq!(st.secret_encrypted, None);
+        assert_eq!(st.fail_count, 0);
+        assert_eq!(st.lock_until, None);
+        assert_eq!(st.last_step, None);
+    }
+
+    #[tokio::test]
+    async fn record_2fa_fail_locks_in_ladder_then_clears() {
+        let db = Db::memory_db().await;
+        let uid = admin_user(&db).await;
+
+        // 第 1~4 次失败不锁
+        for _ in 1..=4 {
+            assert_eq!(db.record_2fa_fail(uid, 1000).await.unwrap(), None);
+        }
+        // 第 5 次：锁 10s
+        assert_eq!(db.record_2fa_fail(uid, 1000).await.unwrap(), Some(1010));
+        let st = db.get_2fa_state(uid).await.unwrap();
+        assert_eq!(st.fail_count, 5);
+        assert_eq!(st.lock_until, Some(1010));
+
+        // 第 6~9 次失败不重复锁
+        for _ in 6..=9 {
+            assert_eq!(db.record_2fa_fail(uid, 1000).await.unwrap(), None);
+        }
+        // 第 10 次：锁 30s
+        assert_eq!(db.record_2fa_fail(uid, 1000).await.unwrap(), Some(1030));
+
+        // 验证成功后清零
+        db.clear_2fa_fail(uid).await.unwrap();
+        let st = db.get_2fa_state(uid).await.unwrap();
+        assert_eq!(st.fail_count, 0);
+        assert_eq!(st.lock_until, None);
+    }
+
+    #[tokio::test]
+    async fn list_users_reports_superuser_and_totp_flags() {
+        let db = Db::memory_db().await;
+        let super1 = make_superuser(&db, "boss-a").await.unwrap();
+        let plain = db.auto_create_user("plain-b").await.unwrap().id;
+        db.set_totp_secret(plain, "ENC".into()).await.unwrap();
+        db.enable_totp(plain, 1).await.unwrap();
+
+        let rows = db.list_users_with_2fa().await.unwrap();
+        let boss = rows.iter().find(|r| r.id == super1).unwrap();
+        assert!(boss.is_superuser);
+        assert!(!boss.totp_enabled);
+        let user = rows.iter().find(|r| r.id == plain).unwrap();
+        assert!(!user.is_superuser);
+        assert!(user.totp_enabled);
     }
 }

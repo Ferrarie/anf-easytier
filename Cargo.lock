@@ -2625,8 +2625,9 @@ dependencies = [
 
 [[package]]
 name = "easytier-web"
-version = "2.6.4"
+version = "2.7.0"
 dependencies = [
+ "aes-gcm",
  "anyhow",
  "async-trait",
  "axum 0.7.7",
@@ -2637,9 +2638,11 @@ dependencies = [
  "chrono",
  "clap",
  "dashmap",
+ "data-encoding",
  "dotenvy",
  "easytier",
  "easytier-core",
+ "hmac",
  "image 0.24.9",
  "imageproc",
  "maxminddb",
@@ -2657,6 +2660,8 @@ dependencies = [
  "sea-orm-migration",
  "serde",
  "serde_json",
+ "sha1",
+ "sha2",
  "sqlx",
  "subtle",
  "sys-locale",

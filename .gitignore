@@ -64,6 +64,9 @@ deploy/bin/
 # Serena 项目数据（记忆/缓存/本地配置）
 .serena/
 
+# ZCode 会话数据（本地执行日志，非交付物）
+.zcode/
+
 # ANF Windows 客户端发布产物
 dist/
 

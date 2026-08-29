@@ -21,6 +21,9 @@ import RegisterDevice from './components/RegisterDevice.vue'
 import NetworkManagementPage from './components/NetworkManagementPage.vue'
 import TagManagementPage from './components/TagManagementPage.vue'
 import AclEditorPage from './components/AclEditorPage.vue'
+import TwoFactorPage from './components/TwoFactorPage.vue'
+import TwoFactorSetup from './components/TwoFactorSetup.vue'
+import UserAdminPage from './components/UserAdminPage.vue'
 import DialogService from 'primevue/dialogservice';
 import ToastService from 'primevue/toastservice';
 import ApiClient from './modules/api';
@@ -64,6 +67,16 @@ const routes = [
                 name: 'deviceRegister',
                 path: 'device-register',
                 component: RegisterDevice,
+            },
+            {
+                name: 'twoFactor',
+                path: '2fa',
+                component: TwoFactorPage,
+            },
+            {
+                name: 'twoFactorSetup',
+                path: '2fa/setup',
+                component: TwoFactorSetup,
             }
         ]
     },
@@ -112,6 +125,11 @@ const routes = [
                 name: 'aclEditor',
                 component: AclEditorPage,
             },
+            {
+                path: 'users',
+                name: 'userAdmin',
+                component: UserAdminPage,
+            },
         ]
     },
     {
@@ -147,9 +165,13 @@ router.beforeEach(async (to) => {
         }
         try {
             const client = new ApiClient(host);
-            const ok = await client.check_login_status();
-            if (!ok) {
+            const status = await client.check_login_status_detail();
+            if (!status.logged_in) {
                 return { name: 'login' };
+            }
+            // superuser 强制两步验证：未绑定先完成绑定，进不了任何功能页
+            if (status.require_two_factor_setup) {
+                return { name: 'twoFactorSetup' };
             }
         } catch {
             return { name: 'login' };

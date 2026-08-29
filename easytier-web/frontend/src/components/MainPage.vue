@@ -5,6 +5,7 @@ import { Button, TieredMenu } from 'primevue';
 import { useRoute, useRouter } from 'vue-router';
 import { useDialog } from 'primevue/usedialog';
 import ChangePassword from './ChangePassword.vue';
+import TwoFactorDialog from './TwoFactorDialog.vue';
 import Icon from '../assets/easytier.png'
 import { useI18n } from 'vue-i18n'
 import ApiClient from '../modules/api';
@@ -55,6 +56,16 @@ const userMenuItems = ref([
             });
 
             console.log("return", ret)
+        },
+    },
+    {
+        label: '两步验证',
+        icon: 'pi pi-shield',
+        command: () => {
+            dialog.open(TwoFactorDialog, {
+                props: { modal: true },
+                data: { api: api.value },
+            });
         },
     },
     {
@@ -190,6 +201,13 @@ onUnmounted(() => {
                         severity="contrast" @click="router.push({ name: 'aclEditor' })">
                         <i class="pi pi-shield text-xl"></i>
                         <span class="mb-0.5">ACL 规则</span>
+                    </Button>
+                </li>
+                <li>
+                    <Button variant="text" class="w-full justify-start gap-x-3 pl-1.5 sidebar-button"
+                        severity="contrast" @click="router.push({ name: 'userAdmin' })">
+                        <i class="pi pi-users text-xl"></i>
+                        <span class="mb-0.5">用户管理</span>
                     </Button>
                 </li>
                 <li>

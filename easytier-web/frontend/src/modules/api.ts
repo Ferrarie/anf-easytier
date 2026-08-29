@@ -14,6 +14,8 @@ export interface OidcConfigResponse {
 export interface LoginResponse {
     success: boolean;
     message: string;
+    /** 登录需要两步验证（半会话已建立，跳动态码页） */
+    require_2fa?: boolean;
 }
 
 export interface RegisterResponse {
@@ -143,8 +145,8 @@ export class ApiClient {
     public async login(data: Credential): Promise<LoginResponse> {
         try {
             data.password = Md5.hashStr(data.password);
-            await this.client.post<any>('/auth/login', data);
-            return { success: true, message: 'Login success', };
+            const ret = await this.client.post<any, any>('/auth/login', data);
+            return { success: true, message: 'Login success', require_2fa: !!ret?.require_2fa, };
         } catch (error) {
             if (error instanceof AxiosError) {
                 if (error.response?.status === 401) {
@@ -174,6 +176,16 @@ export class ApiClient {
             return true;
         } catch (error) {
             return false;
+        }
+    }
+
+    /** 登录态 + superuser 是否需强制绑定 2FA（路由守卫用） */
+    public async check_login_status_detail(): Promise<{ logged_in: boolean; require_two_factor_setup: boolean }> {
+        try {
+            const ret = await this.client.get<any, any>('/auth/check_login_status');
+            return { logged_in: true, require_two_factor_setup: !!ret?.require_two_factor_setup };
+        } catch (error) {
+            return { logged_in: false, require_two_factor_setup: false };
         }
     }
 
@@ -293,6 +305,48 @@ export class ApiClient {
 
     public async updateAclRule(networkId: string, ruleId: number, rule: any): Promise<any> {
         return this.client.patch(`/networks/${networkId}/rules/${ruleId}`, rule);
+    }
+
+    // ===== ANF TOTP 两步验证（2FA，Gitea 同款两步式登录） =====
+
+    /** 半会话状态探测（验码页刷新后恢复流程；pending=false 应回登录页） */
+    public async get2faPending(): Promise<{ pending: boolean; setup_required?: boolean }> {
+        return this.client.get('/auth/2fa/pending');
+    }
+
+    /** 校验动态码并建立正式会话；setup_required=true 时需强制引导绑定 */
+    public async verify2fa(code: string): Promise<{ setup_required?: boolean }> {
+        return this.client.post('/auth/2fa/verify', { code });
+    }
+
+    /** 当前登录用户的 2FA 状态 */
+    public async get2faStatus(): Promise<{ enabled: boolean; is_superuser: boolean; setup_required: boolean }> {
+        return this.client.get('/auth/2fa/status');
+    }
+
+    /** 生成 TOTP secret + otpauth URI（绑定第一步） */
+    public async setup2fa(): Promise<{ secret: string; otpauth_url: string }> {
+        return this.client.post('/auth/2fa/setup');
+    }
+
+    /** 输入动态码启用 2FA（绑定第二步） */
+    public async enable2fa(code: string): Promise<any> {
+        return this.client.post('/auth/2fa/enable', { code });
+    }
+
+    /** 输入当前动态码关闭 2FA */
+    public async disable2fa(code: string): Promise<any> {
+        return this.client.post('/auth/2fa/disable', { code });
+    }
+
+    /** 用户列表（管理员，含 2FA 状态） */
+    public async adminListUsers(): Promise<Array<any>> {
+        return this.client.get<any, Array<any>>('/admin/users');
+    }
+
+    /** 重置用户 2FA（管理员救援：验证器丢失） */
+    public async adminReset2fa(userId: number): Promise<any> {
+        return this.client.post(`/admin/users/${userId}/reset-2fa`);
     }
 
     public async get_summary(): Promise<Summary> {

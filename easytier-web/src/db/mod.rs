@@ -64,6 +64,11 @@ impl Db {
         self.db.clone()
     }
 
+    /// SQLite 数据库文件路径（TOTP 主密钥等伴生文件按此定位）
+    pub fn db_path(&self) -> &str {
+        &self.db_path
+    }
+
     pub fn orm_db(&self) -> &DatabaseConnection {
         &self.orm_db
     }

@@ -201,6 +201,11 @@ enum CliCommand {
         #[arg(long, env = "ANF_ADMIN_PASSWORD", hide_env_values = true)]
         create_user_password: Option<String>,
     },
+    /// 救援：重置用户的两步验证（验证器丢失时用；清除 secret/绑定状态/失败锁定）
+    ResetTwoFactor {
+        #[arg(long)]
+        username: String,
+    },
 }
 
 #[derive(Debug, Clone, Default, clap::Args)]
@@ -432,6 +437,22 @@ async fn main() {
                 };
                 db.bind_admin_device(machine_id, user_id).await.unwrap();
                 println!("已将机器码 {machine_id} 绑定为 {username} 的管理员设备");
+                return;
+            }
+            CliCommand::ResetTwoFactor { username } => {
+                let db = db::Db::new(cli.db.clone()).await.unwrap();
+                match db.get_user_id(&username).await.unwrap() {
+                    Some(user_id) => {
+                        db.clear_totp(user_id).await.unwrap();
+                        println!(
+                            "已重置用户 {username} 的两步验证；若其为 superuser，下次登录将被要求重新绑定"
+                        );
+                    }
+                    None => {
+                        eprintln!("用户不存在: {username}");
+                        std::process::exit(1);
+                    }
+                }
                 return;
             }
         }
