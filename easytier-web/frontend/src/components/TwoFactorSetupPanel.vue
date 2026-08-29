@@ -18,6 +18,13 @@ const loading = ref(false);
 const loadSetup = async () => {
     loading.value = true;
     try {
+        // 半会话兜底：superuser 未绑定时被直接引导到绑定页，但仍处于"待二次验证"
+        // 半会话，而 setup 接口要求正式登录态。后端对未绑定用户的验码直接放行，
+        // 这里静默过一次 verify 建立正式会话；已是正式会话（弹窗内普通用户）时
+        // 该调用返回 401，忽略即可。
+        try {
+            await props.api.verify2fa('000000');
+        } catch { /* ignore */ }
         const ret = await props.api.setup2fa();
         secret.value = ret.secret;
         qrSrc.value = await QRCode.toDataURL(ret.otpauth_url, { width: 220, margin: 1 });
